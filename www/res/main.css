@@ -1,0 +1,16 @@
+body{
+  margin: 0;
+  padding: 0;
+}
+#terminal{
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  background: black;
+}
+.xterm-viewport::-webkit-scrollbar {  
+  display: none;
+}
+.xterm-viewport{
+  scrollbar-width: none;
+}

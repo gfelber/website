@@ -1,0 +1,36 @@
+{
+  "name": "website",
+  "version": "0.1.0",
+  "description": "website with rustwasm shell",
+  "main": "index.js",
+  "bin": {
+    "create-wasm-app": ".bin/create-wasm-app.js"
+  },
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "start": "webpack-dev-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gfelber/website.git"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "rust",
+    "webpack"
+  ],
+  "author": "https://github.com/gfelber/website",
+  "homepage": "https://github.com/gfelber/website",
+  "dependencies": {
+    "wasm-backend": "file:../pkg",
+    "xterm": "^5.2.1",
+    "xterm-addon-fit": "^0.7.0"
+  },
+  "devDependencies": {
+    "copy-webpack-plugin": "^5.1.2",
+    "webpack": "^4.46.0",
+    "webpack-cli": "^3.3.12",
+    "webpack-dev-server": "^3.11.3"
+  }
+}
