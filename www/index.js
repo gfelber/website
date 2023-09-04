@@ -9,8 +9,7 @@ term.loadAddon(fitAddon);
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
-wasm.init(term.rows, term.cols)
-term.write('$ ')
+term.write(wasm.init(term.rows, term.cols));
 term.onData(function(data) {
-  term.write(wasm.readline(data))
+  term.write(wasm.readline(data));
 });
