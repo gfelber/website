@@ -1,3 +1,4 @@
+#![feature(str_split_remainder)]
 mod utils;
 
 use include_dir::{include_dir, Dir};
@@ -24,17 +25,13 @@ static mut HEIGHT: usize = 0;
 const PREFIX: &str = "$ " ;
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize) -> String{
-    log(ROOT.get_file("test").unwrap().contents_utf8().unwrap());
+    log(ROOT.get_file("test_file").unwrap().contents_utf8().unwrap());
+    log(ROOT.get_dir("test_dir").unwrap().path().to_str().unwrap());
     unsafe {
       WIDTH = width - PREFIX.len(); // remove because of shell
       HEIGHT = height;
     }
     return PREFIX.to_string();
-}
-
-#[wasm_bindgen]
-pub fn echo(input: char) -> String {
-    return input.to_string();
 }
 
 #[wasm_bindgen]
@@ -56,27 +53,33 @@ static mut ESCAPE: bool = false;
 static mut CURSOR_X: usize = 0;
 static mut CURSOR_Y: usize = 0;
 
-static mut IS_ARROW: bool = false;
 const UP: &str = "\x1b\x5b\x41";
 const DOWN: &str = "\x1b\x5b\x42";
 const RIGHT: &str = "\x1b\x5b\x43";
 const LEFT: &str = "\x1b\x5b\x44";
 const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
+const NEWLINE: &str = "\n\r";
 
 pub fn clear() -> String {
   unsafe{ CURSOR_Y += HEIGHT - (CURSOR_Y % HEIGHT) };
   let cleared: String = "\n".repeat(unsafe{ HEIGHT });
   let ups: String = UP.repeat(unsafe{ HEIGHT });
   unsafe{ CURSOR_X = 0 };
-  return cleared + &ups + "\r$ ";
+  return cleared + &ups + NEWLINE + PREFIX;
+}
+
+pub fn echo(input: &str) -> String {
+    return NEWLINE.to_string() + input + NEWLINE + PREFIX;
 }
 
 pub fn command(cmd: &str) -> String {
-  match cmd {
+  let mut cmd_args = cmd.split(" ");
+  match cmd_args.next().unwrap() {
     "clear" => return clear(),
+    "echo" => return echo(cmd_args.remainder().unwrap()),
     _ => {
       unsafe {CURSOR_Y += 1};
-      return "\r\n".to_string() + PREFIX
+      return NEWLINE.to_string() + PREFIX
     }
   }
 }
