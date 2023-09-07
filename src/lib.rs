@@ -1,8 +1,9 @@
 mod utils;
 
+use include_dir::{include_dir, Dir};
 use wasm_bindgen::prelude::*;
-use std::sync::Mutex;
 use lazy_static::lazy_static;
+use std::sync::Mutex;
 
 #[wasm_bindgen]
 extern "C" {
@@ -16,11 +17,14 @@ extern "C" {
     fn log_char(a: Option<char>);
 }
 
+static ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
+
 static mut WIDTH: usize = 0;
 static mut HEIGHT: usize = 0;
 const PREFIX: &str = "$ " ;
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize) -> String{
+    log(ROOT.get_file("test").unwrap().contents_utf8().unwrap());
     unsafe {
       WIDTH = width - PREFIX.len(); // remove because of shell
       HEIGHT = height;
