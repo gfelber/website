@@ -125,7 +125,10 @@ pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> 
         unsafe{CURSOR_X = entry.len()};
         return out;
       }
-      return "".to_string();
+      input_buffer.clear();
+      let out = clearline();
+      unsafe{CURSOR_X = 0};
+      return out;
     },
     RIGHT => {
       if unsafe{CURSOR_X < input_buffer.len()} {
