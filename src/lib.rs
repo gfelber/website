@@ -4,7 +4,7 @@ mod utils;
 use include_dir::{include_dir, Dir};
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 #[wasm_bindgen]
 extern "C" {
@@ -49,6 +49,11 @@ lazy_static! {
 lazy_static! {
     static ref ESCAPE_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
 }
+lazy_static! {
+    static ref HISTORY: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+}
+
+static mut HISTORY_INDEX: usize = 0;
 static mut ESCAPE: bool = false;
 static mut CURSOR_X: usize = 0;
 static mut CURSOR_Y: usize = 0;
@@ -68,13 +73,23 @@ pub fn clear() -> String {
   return cleared + &ups + NEWLINE + PREFIX;
 }
 
+pub fn clearline() -> String {
+  let out:String = RETURN.repeat(unsafe{ CURSOR_X });
+  unsafe{ CURSOR_X = 0 };
+  return out;
+}
+
 pub fn echo(input: &str) -> String {
     return NEWLINE.to_string() + input + NEWLINE + PREFIX;
 }
 
-pub fn command(cmd: &str) -> String {
-  let mut cmd_args = cmd.split(" ");
-  match cmd_args.next().unwrap() {
+pub fn command(cmdline: &str) -> String {
+  let mut history = HISTORY.lock().unwrap();
+  history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+  unsafe{HISTORY_INDEX = history.len()};
+  let mut cmd_args = cmdline.split(" ");
+  let cmdline = cmd_args.next().unwrap();
+  match cmdline {
     "clear" => return clear(),
     "echo" => return echo(cmd_args.remainder().unwrap()),
     _ => {
@@ -84,18 +99,38 @@ pub fn command(cmd: &str) -> String {
   }
 }
 
-pub fn escape(escapestr: &str, len: usize) -> String {
+pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
+  let history = HISTORY.lock().unwrap();
+  for item in &*history {
+    log(item);
+  }
   match escapestr {
     UP => {
-      // TODO: implement command history
+      if unsafe{HISTORY_INDEX > 0} {
+        unsafe{HISTORY_INDEX -= 1}
+        let entry = history[unsafe{HISTORY_INDEX}]; 
+        input_buffer.clear();
+        input_buffer.extend(entry.chars());
+        let out = clearline() + entry;
+        unsafe{CURSOR_X = entry.len()};
+        return out;
+      }
       return "".to_string();
     },
     DOWN => {
-      // TODO: implement command history
+      if history.len() != 0 && unsafe{HISTORY_INDEX < history.len() - 1}{
+        unsafe{HISTORY_INDEX += 1}
+        let entry = history[unsafe{HISTORY_INDEX}]; 
+        input_buffer.clear();
+        input_buffer.extend(entry.chars());
+        let out = clearline() + entry;
+        unsafe{CURSOR_X = entry.len()};
+        return out;
+      }
       return "".to_string();
     },
     RIGHT => {
-      if unsafe{CURSOR_X < len} {
+      if unsafe{CURSOR_X < input_buffer.len()} {
         unsafe{CURSOR_X += 1}
         return RIGHT.to_string();
       }
@@ -119,7 +154,7 @@ pub fn readchar(input: char) -> String {
     if unsafe{ESCAPE} {
       escape_buffer.push(input);
       let escapestr: String = escape_buffer.iter().collect();
-      let out: String = escape(&escapestr, input_buffer.len());
+      let out: String = escape(&escapestr, &mut input_buffer);
       if out != "" || escape_buffer.len() == 3 {
         unsafe { ESCAPE=false };
         escape_buffer.clear(); 
@@ -136,10 +171,8 @@ pub fn readchar(input: char) -> String {
       },
       // clear line
       '\x15' => {
-        let out:String = RETURN.repeat(unsafe{ CURSOR_X });
         input_buffer.clear();
-        unsafe{ CURSOR_X = 0 };
-        return out;
+        return clearline();
       },
       // clear
       '\x0c' => {
@@ -173,5 +206,4 @@ pub fn readchar(input: char) -> String {
         return input.to_string();
       }
     }
-    return input.to_string();
 }
