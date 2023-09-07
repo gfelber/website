@@ -66,11 +66,11 @@ const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
 pub fn clear() -> String {
-  unsafe{ CURSOR_Y += HEIGHT - (CURSOR_Y % HEIGHT) };
+  unsafe{ CURSOR_Y = 0 };
+  unsafe{ CURSOR_X = 0 };
   let cleared: String = "\n".repeat(unsafe{ HEIGHT });
   let ups: String = UP.repeat(unsafe{ HEIGHT });
-  unsafe{ CURSOR_X = 0 };
-  return cleared + &ups + NEWLINE + PREFIX;
+  return cleared + &ups + "\r" + PREFIX;
 }
 
 pub fn clearline() -> String {
@@ -80,6 +80,7 @@ pub fn clearline() -> String {
 }
 
 pub fn echo(input: &str) -> String {
+    unsafe {CURSOR_Y += 1};
     return NEWLINE.to_string() + input + NEWLINE + PREFIX;
 }
 
@@ -89,11 +90,11 @@ pub fn command(cmdline: &str) -> String {
   unsafe{HISTORY_INDEX = history.len()};
   let mut cmd_args = cmdline.split(" ");
   let cmdline = cmd_args.next().unwrap();
+  unsafe{ CURSOR_Y += 1 };
   match cmdline {
     "clear" => return clear(),
     "echo" => return echo(cmd_args.remainder().unwrap()),
     _ => {
-      unsafe {CURSOR_Y += 1};
       return NEWLINE.to_string() + PREFIX
     }
   }
@@ -101,9 +102,6 @@ pub fn command(cmdline: &str) -> String {
 
 pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
   let history = HISTORY.lock().unwrap();
-  for item in &*history {
-    log(item);
-  }
   match escapestr {
     UP => {
       if unsafe{HISTORY_INDEX > 0} {
