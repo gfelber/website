@@ -65,6 +65,15 @@ const LEFT: &str = "\x1b\x5b\x44";
 const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
+const HEADER: &str = "\x1b[95m";
+const OKBLUE: &str = "\x1b[94m";
+const OKGREEN: &str = "\x1b[92m";
+const WARNING: &str = "\x1b[93m";
+const FAIL: &str = "\x1b[91m";
+const ENDC: &str = "\x1b[0m";
+const BOLD: &str = "\x1b[1m";
+const UNDERLINE: &str = "\x1b[4m";
+
 pub fn clear() -> String {
   unsafe{ CURSOR_Y = 0 };
   unsafe{ CURSOR_X = 0 };
@@ -86,11 +95,15 @@ pub fn echo(args: &str) -> String {
 }
 
 pub fn ls(args: &str) -> String {
-  log(args);
+  let mut entries: Vec<String> = Vec::new();
   for entry in ROOT.entries(){
-    log(&format!("{}", entry.path().display()));
+    if entry.as_dir().is_none()  {
+      entries.push(entry.path().display().to_string());
+    } else {
+      entries.push(OKBLUE.to_string() + &entry.path().display().to_string() + ENDC);
+    }
   }
-  return NEWLINE.to_string() + PREFIX; 
+  return NEWLINE.to_string() + &entries.connect(" ") + NEWLINE + PREFIX; 
 }
 
 pub fn command(cmdline: &str) -> String {
