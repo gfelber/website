@@ -2,9 +2,12 @@
 mod utils;
 
 use include_dir::{include_dir, Dir};
+use std::sync::{Mutex, MutexGuard};
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
-use std::sync::{Mutex, MutexGuard};
+use wasm_bindgen::JsValue;
+use web_sys::History;
+use web_sys::window;
 
 #[wasm_bindgen]
 extern "C" {
@@ -19,14 +22,22 @@ extern "C" {
 }
 
 static ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
+static mut PATH: &Dir<'_> = &ROOT;
 
 static mut WIDTH: usize = 0;
 static mut HEIGHT: usize = 0;
 const PREFIX: &str = "$ " ;
 #[wasm_bindgen]
-pub fn init(height: usize, width: usize) -> String{
+pub fn init(height: usize, width: usize, location: &str) -> String{
+    log(location);
     log(ROOT.get_file("test_file").unwrap().contents_utf8().unwrap());
-    log(ROOT.get_dir("test_dir").unwrap().path().to_str().unwrap());
+    log(ROOT.get_dir("test_dir/test_dir2").unwrap().path().to_str().unwrap());
+    let mut location_str = location.to_string();
+    location_str.remove(0);
+    let path = ROOT.get_dir(location_str);
+    if !path.is_none(){
+      unsafe{PATH = path.unwrap()};
+    }
     unsafe {
       WIDTH = width - PREFIX.len(); // remove because of shell
       HEIGHT = height;
@@ -96,14 +107,67 @@ pub fn echo(args: &str) -> String {
 
 pub fn ls(args: &str) -> String {
   let mut entries: Vec<String> = Vec::new();
-  for entry in ROOT.entries(){
+  for entry in unsafe{ PATH.entries() } {
+    let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
     if entry.as_dir().is_none()  {
-      entries.push(entry.path().display().to_string());
+      entries.push(name);
     } else {
-      entries.push(BLUE.to_string() + BOLD + &entry.path().display().to_string() + ENDC);
+      entries.push(BLUE.to_string() + BOLD + &name + ENDC);
     }
   }
-  return NEWLINE.to_string() + &entries.connect(" ") + NEWLINE + PREFIX; 
+  return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX; 
+}
+
+pub fn change_url(new_url: &str) -> Result<(), JsValue> {
+    // Get a reference to the window's history object
+    let window = window().expect("Should have a window in this context");
+    let history = window.history().expect("Should have a history object in this context");
+
+    // Push the new URL onto the history stack without reloading the page
+    history.push_state_with_url(&JsValue::NULL, "", Some(new_url))
+        .map_err(|err| err.into())
+}
+
+fn resolve_path(path: &str) -> String {
+    let mut components: Vec<&str> = path.split('/').collect();
+    let mut resolved_components: Vec<&str> = Vec::new();
+
+    for component in components.iter() {
+        if component == &".." {
+            // If the component is '..', remove the last resolved component
+            if !resolved_components.is_empty() {
+                resolved_components.pop();
+            }
+        } else {
+            // Otherwise, add the component to the resolved path
+            resolved_components.push(component);
+        }
+    }
+
+    resolved_components.join("/")
+}
+
+pub fn cd(path_str: &str) -> String {
+  let path = unsafe{PATH.path().join(path_str).display().to_string()};
+  log(&path);
+  let resolved = resolve_path(&path);
+  log(&resolved);
+  let change:Option<&Dir>; 
+  if resolved == ""{
+    change = Some(&ROOT);
+  } else {
+    change = ROOT.get_dir(path);
+  }  
+  if !change.is_none(){
+    log(change.unwrap().path().to_str().unwrap());
+    unsafe{ PATH = &change.unwrap() };
+    change_url(&("/".to_string() + unsafe{PATH.path().to_str().unwrap()}));
+  }
+  return NEWLINE.to_string() + PREFIX; 
+}
+
+pub fn pwd() -> String {
+  return NEWLINE.to_string() + "/" + unsafe{ &PATH.path().display().to_string() } + NEWLINE + PREFIX; 
 }
 
 pub fn command(cmdline: &str) -> String {
@@ -115,6 +179,8 @@ pub fn command(cmdline: &str) -> String {
   unsafe{ CURSOR_Y += 1 };
   match cmdline {
     "clear" => return clear(),
+    "pwd" => return pwd(),
+    "cd" => return cd(cmd_args.remainder().unwrap_or("")),
     "ls" => return ls(cmd_args.remainder().unwrap_or("")),
     "echo" => return echo(cmd_args.remainder().unwrap_or("")),
     _ => {

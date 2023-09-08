@@ -33,7 +33,7 @@ term.loadAddon(fitAddon);
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
-term.write(wasm.init(term.rows, term.cols));
+term.write(wasm.init(term.rows, term.cols, window.location.pathname));
 term.onData(function(data) {
   term.write(wasm.readline(data));
 });

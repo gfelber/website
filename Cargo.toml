@@ -21,6 +21,13 @@ include_dir = "0.7.3"
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
 
+[dependencies.web-sys]
+version = "0.3.64"
+features = [
+  "Window",
+  "History"
+]
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
 

@@ -20,7 +20,7 @@
     "rust",
     "webpack"
   ],
-  "author": "https://github.com/gfelber/website",
+  "author": "0x6fe1be2",
   "homepage": "https://github.com/gfelber/website",
   "dependencies": {
     "@fontsource-variable/source-code-pro": "^5.0.9",
