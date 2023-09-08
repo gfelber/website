@@ -47,14 +47,14 @@ lazy_static! {
     static ref INPUT_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
 }
 lazy_static! {
-    static ref ESCAPE_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
+    static ref ANSI_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
 }
 lazy_static! {
     static ref HISTORY: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
 }
 
 static mut HISTORY_INDEX: usize = 0;
-static mut ESCAPE: bool = false;
+static mut ANSI: bool = false;
 static mut CURSOR_X: usize = 0;
 static mut CURSOR_Y: usize = 0;
 
@@ -73,15 +73,24 @@ pub fn clear() -> String {
   return cleared + &ups + "\r" + PREFIX;
 }
 
-pub fn clearline() -> String {
-  let out:String = RETURN.repeat(unsafe{ CURSOR_X });
+pub fn clearline(len: usize) -> String {
+  let right:String = RIGHT.repeat(len - unsafe{CURSOR_X});
+  let out:String = RETURN.repeat(len);
   unsafe{ CURSOR_X = 0 };
-  return out;
+  return right + &out;
 }
 
-pub fn echo(input: &str) -> String {
+pub fn echo(args: &str) -> String {
     unsafe {CURSOR_Y += 1};
-    return NEWLINE.to_string() + input + NEWLINE + PREFIX;
+    return NEWLINE.to_string() + args + NEWLINE + PREFIX;
+}
+
+pub fn ls(args: &str) -> String {
+  log(args);
+  for entry in ROOT.entries(){
+    log(&format!("{}", entry.path().display()));
+  }
+  return NEWLINE.to_string() + PREFIX; 
 }
 
 pub fn command(cmdline: &str) -> String {
@@ -93,23 +102,24 @@ pub fn command(cmdline: &str) -> String {
   unsafe{ CURSOR_Y += 1 };
   match cmdline {
     "clear" => return clear(),
-    "echo" => return echo(cmd_args.remainder().unwrap()),
+    "ls" => return ls(cmd_args.remainder().unwrap_or("")),
+    "echo" => return echo(cmd_args.remainder().unwrap_or("")),
     _ => {
       return NEWLINE.to_string() + PREFIX
     }
   }
 }
 
-pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
+pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
   let history = HISTORY.lock().unwrap();
-  match escapestr {
+  match ansistr {
     UP => {
       if unsafe{HISTORY_INDEX > 0} {
         unsafe{HISTORY_INDEX -= 1}
         let entry = history[unsafe{HISTORY_INDEX}]; 
+        let out = clearline(input_buffer.len()) + entry;
         input_buffer.clear();
         input_buffer.extend(entry.chars());
-        let out = clearline() + entry;
         unsafe{CURSOR_X = entry.len()};
         return out;
       }
@@ -119,14 +129,14 @@ pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> 
       if history.len() != 0 && unsafe{HISTORY_INDEX < history.len() - 1}{
         unsafe{HISTORY_INDEX += 1}
         let entry = history[unsafe{HISTORY_INDEX}]; 
+        let out = clearline(input_buffer.len()) + entry;
         input_buffer.clear();
         input_buffer.extend(entry.chars());
-        let out = clearline() + entry;
         unsafe{CURSOR_X = entry.len()};
         return out;
       }
+      let out = clearline(input_buffer.len());
       input_buffer.clear();
-      let out = clearline();
       unsafe{CURSOR_X = 0};
       return out;
     },
@@ -150,15 +160,15 @@ pub fn escape(escapestr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> 
 #[wasm_bindgen]
 pub fn readchar(input: char) -> String {
     log(&format!("{:02x}", input as u32));
-    let mut escape_buffer = ESCAPE_BUFFER.lock().unwrap();
+    let mut ansi_buffer = ANSI_BUFFER.lock().unwrap();
     let mut input_buffer = INPUT_BUFFER.lock().unwrap();
-    if unsafe{ESCAPE} {
-      escape_buffer.push(input);
-      let escapestr: String = escape_buffer.iter().collect();
-      let out: String = escape(&escapestr, &mut input_buffer);
-      if out != "" || escape_buffer.len() == 3 {
-        unsafe { ESCAPE=false };
-        escape_buffer.clear(); 
+    if unsafe{ANSI} {
+      ansi_buffer.push(input);
+      let ansistr: String = ansi_buffer.iter().collect();
+      let out: String = ansi(&ansistr, &mut input_buffer);
+      if out != "" || ansi_buffer.len() == 3 {
+        unsafe { ANSI=false };
+        ansi_buffer.clear(); 
       }
       return out;
     }
@@ -172,8 +182,9 @@ pub fn readchar(input: char) -> String {
       },
       // clear line
       '\x15' => {
+        let len = input_buffer.len();
         input_buffer.clear();
-        return clearline();
+        return clearline(len);
       },
       // clear
       '\x0c' => {
@@ -185,14 +196,18 @@ pub fn readchar(input: char) -> String {
           if input_buffer.is_empty() {
             return "".to_string();
           }
-          input_buffer.pop();
-          unsafe{ CURSOR_X -= 1 };
-          return RETURN.to_string();
+          let cursor_x = unsafe{ CURSOR_X - 1 };
+          input_buffer.remove(cursor_x);
+          let left = LEFT.repeat(input_buffer.len() - cursor_x);
+          let inputstr: String = input_buffer.iter().collect();
+          let out = clearline(input_buffer.len() + 1) + inputstr.as_str() + &left; 
+          unsafe{ CURSOR_X = cursor_x };
+          return out;
       },
-      // escape
+      // ansi
       '\x1b' => {
-        unsafe { ESCAPE = true };
-        escape_buffer.push(input);
+        unsafe { ANSI = true };
+        ansi_buffer.push(input);
         return "".to_string();
       },
       _ => {
