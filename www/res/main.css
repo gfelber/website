@@ -6,7 +6,7 @@ body{
   position: absolute;
   height: 100%;
   width: 100%;
-  background: black;
+  background: #181818;
 }
 .xterm-viewport::-webkit-scrollbar {  
   display: none;

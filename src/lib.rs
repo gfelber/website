@@ -65,11 +65,11 @@ const LEFT: &str = "\x1b\x5b\x44";
 const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
-const HEADER: &str = "\x1b[95m";
-const OKBLUE: &str = "\x1b[94m";
-const OKGREEN: &str = "\x1b[92m";
-const WARNING: &str = "\x1b[93m";
-const FAIL: &str = "\x1b[91m";
+const HEADER_PURPLE: &str = "\x1b[95m";
+const BLUE: &str = "\x1b[34m";
+const GREEN: &str = "\x1b[32m";
+const YELLOW: &str = "\x1b[33m";
+const RED: &str = "\x1b[31m";
 const ENDC: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
 const UNDERLINE: &str = "\x1b[4m";
@@ -100,7 +100,7 @@ pub fn ls(args: &str) -> String {
     if entry.as_dir().is_none()  {
       entries.push(entry.path().display().to_string());
     } else {
-      entries.push(OKBLUE.to_string() + &entry.path().display().to_string() + ENDC);
+      entries.push(BLUE.to_string() + BOLD + &entry.path().display().to_string() + ENDC);
     }
   }
   return NEWLINE.to_string() + &entries.connect(" ") + NEWLINE + PREFIX; 

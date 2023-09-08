@@ -23,6 +23,7 @@
   "author": "https://github.com/gfelber/website",
   "homepage": "https://github.com/gfelber/website",
   "dependencies": {
+    "@fontsource-variable/source-code-pro": "^5.0.9",
     "wasm-backend": "file:../pkg",
     "xterm": "^5.2.1",
     "xterm-addon-fit": "^0.7.0"
