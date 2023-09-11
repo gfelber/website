@@ -1,13 +1,14 @@
 #![feature(str_split_remainder)]
 mod utils;
 
-use include_dir::{include_dir, Dir};
+use include_dir::{include_dir, Dir, File};
 use std::sync::{Mutex, MutexGuard};
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
 use web_sys::History;
 use web_sys::window;
+
 
 #[wasm_bindgen]
 extern "C" {
@@ -39,7 +40,7 @@ pub fn init(height: usize, width: usize, location: &str) -> String{
       unsafe{PATH = path.unwrap()};
     }
     unsafe {
-      WIDTH = width - PREFIX.len(); // remove because of shell
+      WIDTH = width - PREFIX.len(); // remove because of PREFIX
       HEIGHT = height;
     }
     return PREFIX.to_string();
@@ -105,17 +106,29 @@ pub fn echo(args: &str) -> String {
     return NEWLINE.to_string() + args + NEWLINE + PREFIX;
 }
 
-pub fn ls(args: &str) -> String {
-  let mut entries: Vec<String> = Vec::new();
-  for entry in unsafe{ PATH.entries() } {
-    let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
-    if entry.as_dir().is_none()  {
-      entries.push(name);
-    } else {
-      entries.push(BLUE.to_string() + BOLD + &name + ENDC);
+pub fn ls(path_str: &str) -> String {
+  let path = unsafe{PATH.path().join(path_str).display().to_string()};
+  let resolved = resolve_path(&path);
+  log(&resolved);
+  let change:Option<&Dir>; 
+  if resolved == ""{
+    change = Some(&ROOT);
+  } else {
+    change = ROOT.get_dir(resolved);
+  }  
+  if !change.is_none(){
+    let mut entries: Vec<String> = Vec::new();
+    for entry in unsafe{ change.unwrap().entries() } {
+      let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
+      if entry.as_dir().is_none() {
+        entries.push(name);
+      } else {
+        entries.push(BLUE.to_string() + BOLD + &name + ENDC);
+      }
     }
+    return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX; 
   }
-  return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX; 
+  return NEWLINE.to_string() + PREFIX; 
 }
 
 pub fn change_url(new_url: &str) -> Result<(), JsValue> {
@@ -149,26 +162,55 @@ fn resolve_path(path: &str) -> String {
 
 pub fn cd(path_str: &str) -> String {
   let path = unsafe{PATH.path().join(path_str).display().to_string()};
-  log(&path);
   let resolved = resolve_path(&path);
   log(&resolved);
   let change:Option<&Dir>; 
   if resolved == ""{
     change = Some(&ROOT);
   } else {
-    change = ROOT.get_dir(path);
+    change = ROOT.get_dir(resolved);
+  }  
+  if !change.is_none(){
+    unsafe{ PATH = &change.unwrap() };
+    let _ = change_url(&("/".to_string() + unsafe{PATH.path().to_str().unwrap()}));
+  }
+  return NEWLINE.to_string() + PREFIX; 
+}
+
+pub fn cat(path_str: &str) -> String {
+  let path = unsafe{PATH.path().join(path_str).display().to_string()};
+  log(&path);
+  let resolved = resolve_path(&path);
+  log(&resolved);
+  let change:Option<&File>; 
+  if resolved == ""{
+    change = None;
+  } else {
+    change = ROOT.get_file(resolved);
   }  
   if !change.is_none(){
     log(change.unwrap().path().to_str().unwrap());
-    unsafe{ PATH = &change.unwrap() };
-    change_url(&("/".to_string() + unsafe{PATH.path().to_str().unwrap()}));
+    return NEWLINE.to_string() + change.unwrap().contents_utf8().unwrap() + NEWLINE + PREFIX; 
   }
-  return NEWLINE.to_string() + PREFIX; 
+  return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX); 
 }
 
 pub fn pwd() -> String {
   return NEWLINE.to_string() + "/" + unsafe{ &PATH.path().display().to_string() } + NEWLINE + PREFIX; 
 }
+
+pub fn help(args: &str) -> String {
+    let help = "clear\t\tclear terminal \n\r\
+            pwd\t\tprint current directory (or just check URL)\n\r\
+            cd\tPATH\tchange directory\n\r\
+            cat\tPATH\tstdout file\n\r\
+            ls\t[PATH]\tlist files in directory\n\r\
+            echo\tMSG\techo message\n\r\
+            help\t\tprint this message \
+            ";
+    return NEWLINE.to_string() + help + NEWLINE + PREFIX;
+}
+
 
 pub fn command(cmdline: &str) -> String {
   let mut history = HISTORY.lock().unwrap();
@@ -181,7 +223,9 @@ pub fn command(cmdline: &str) -> String {
     "clear" => return clear(),
     "pwd" => return pwd(),
     "cd" => return cd(cmd_args.remainder().unwrap_or("")),
+    "cat" => return cat(cmd_args.remainder().unwrap_or("")),
     "ls" => return ls(cmd_args.remainder().unwrap_or("")),
+    "help" => return help(cmd_args.remainder().unwrap_or("")),
     "echo" => return echo(cmd_args.remainder().unwrap_or("")),
     _ => {
       return NEWLINE.to_string() + PREFIX
@@ -269,6 +313,12 @@ pub fn readchar(input: char) -> String {
       '\x0c' => {
         input_buffer.clear();
         return clear();
+      },
+      // TAB
+      '\x09' => {
+        input_buffer.extend("  ".chars());
+        unsafe{ CURSOR_X += 2 };
+        return "  ".to_string();
       },
       // return key
       '\x7f' => {
