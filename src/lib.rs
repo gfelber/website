@@ -38,17 +38,25 @@ pub fn init(height: usize, width: usize, location: &str) -> String{
     log(ROOT.get_dir("test_dir/test_dir2").unwrap().path().to_str().unwrap());
     let mut location_str = location.to_string();
     location_str.remove(0);
-    let path = ROOT.get_entry(location_str);
-    if !path.is_none(){
-      if path.unwrap().as_dir().is_none() {
-        log("found file");
-      } else {
-        unsafe{PATH = path.unwrap().as_dir().unwrap()};
-      }
-    }
+    let path = ROOT.get_entry(location_str.clone());
     unsafe {
       WIDTH = width - PREFIX.len(); // remove because of PREFIX
       HEIGHT = height;
+    }
+    if !path.is_none(){
+      if path.unwrap().as_dir().is_none() {
+        let resolved = resolve_path(&(location_str + "/.."));
+        log("works");
+        log(&resolved);
+        if !resolved.is_empty() {
+          unsafe{ PATH = ROOT.get_dir(resolved).unwrap() };
+        }
+        unsafe{ LESS = true };
+        unsafe{ LESS_LINES = path.unwrap().as_file().unwrap().contents_utf8().unwrap().lines().collect() };
+        return less_from(0);
+      } else {
+        unsafe{PATH = path.unwrap().as_dir().unwrap()};
+      }
     }
     return PREFIX.to_string();
 }
@@ -180,11 +188,19 @@ fn resolve_path(path: &str) -> String {
 }
 
 pub fn cd(path_str: &str) -> String {
-  let path = unsafe{PATH.path().join(path_str).display().to_string()};
-  let resolved = resolve_path(&path);
+  let mut path = "".to_string();
+  if ! (path_str.is_empty() || path_str == "/") {
+    if path_str.starts_with('/') {
+      path = path_str[1..].to_string();
+    } else {
+      path = unsafe{PATH.path().join(path_str).display().to_string()};
+    }
+  }
+  log(&path);
+  let mut resolved = resolve_path(&path);
   log(&resolved);
   let change:Option<&Dir>; 
-  if resolved == ""{
+  if resolved.is_empty(){
     change = Some(&ROOT);
   } else {
     change = ROOT.get_dir(resolved);
@@ -261,6 +277,7 @@ pub fn less(path_str: &str) -> String {
     change = ROOT.get_file(resolved);
   }  
   if !change.is_none(){
+    let _ = change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
     log(change.unwrap().path().to_str().unwrap());
     unsafe{ LESS_LINES = change.unwrap().contents_utf8().unwrap().lines().collect() };
     unsafe{LESS = true};
@@ -348,6 +365,16 @@ pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> Stri
         return LEFT.to_string();
       }
     },
+    PAGE_START => {
+      let repeat = unsafe{CURSOR_X};
+      unsafe{CURSOR_X = 0}
+      return LEFT.repeat(repeat);
+    },
+    PAGE_END => {
+        let repeat = unsafe{input_buffer.len() - CURSOR_X};
+        unsafe{CURSOR_X = input_buffer.len()}
+        return RIGHT.repeat(repeat);
+    },
     _ => {},
   }
   return "".to_string()
@@ -417,6 +444,7 @@ pub fn less_readchar(input: char) -> String {
       },
       // quit
       'q' => {
+        let _ = change_url(&("/".to_string() + unsafe{PATH.path().to_str().unwrap()}));
         unsafe { LESS = false };
         return clear();
       },

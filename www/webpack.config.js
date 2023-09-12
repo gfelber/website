@@ -13,6 +13,8 @@ module.exports = {
     new CopyWebpackPlugin(['index.html'])
   ],
   devServer: {
-    historyApiFallback: true,
+    historyApiFallback: {
+      rewrites: [{ from: /./, to: '/index.html' }], 
+    }
   }
 };
