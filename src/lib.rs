@@ -8,6 +8,7 @@ use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
 use web_sys::History;
 use web_sys::window;
+use std::str::Lines;
 
 
 #[wasm_bindgen]
@@ -24,9 +25,11 @@ extern "C" {
 
 static ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
 static mut PATH: &Dir<'_> = &ROOT;
+static mut LESS_LINES:Vec<&str> = Vec::new();
 
 static mut WIDTH: usize = 0;
 static mut HEIGHT: usize = 0;
+static mut LESS: bool = false;
 const PREFIX: &str = "$ " ;
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String{
@@ -35,9 +38,13 @@ pub fn init(height: usize, width: usize, location: &str) -> String{
     log(ROOT.get_dir("test_dir/test_dir2").unwrap().path().to_str().unwrap());
     let mut location_str = location.to_string();
     location_str.remove(0);
-    let path = ROOT.get_dir(location_str);
+    let path = ROOT.get_entry(location_str);
     if !path.is_none(){
-      unsafe{PATH = path.unwrap()};
+      if path.unwrap().as_dir().is_none() {
+        log("found file");
+      } else {
+        unsafe{PATH = path.unwrap().as_dir().unwrap()};
+      }
     }
     unsafe {
       WIDTH = width - PREFIX.len(); // remove because of PREFIX
@@ -66,32 +73,44 @@ lazy_static! {
 }
 
 static mut HISTORY_INDEX: usize = 0;
-static mut ANSI: bool = false;
 static mut CURSOR_X: usize = 0;
 static mut CURSOR_Y: usize = 0;
 
+// ANSI
 const UP: &str = "\x1b\x5b\x41";
 const DOWN: &str = "\x1b\x5b\x42";
 const RIGHT: &str = "\x1b\x5b\x43";
 const LEFT: &str = "\x1b\x5b\x44";
+const PAGE_DOWN: &str = "\x1b\x5b\x36\x7e";
+const PAGE_UP: &str = "\x1b\x5b\x35\x7e";
+const PAGE_START: &str = "\x1b\x5b\x48";
+const PAGE_END: &str = "\x1b\x5b\x46";
 const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
+static mut ANSI: bool = false;
 const HEADER_PURPLE: &str = "\x1b[95m";
 const BLUE: &str = "\x1b[34m";
 const GREEN: &str = "\x1b[32m";
 const YELLOW: &str = "\x1b[33m";
 const RED: &str = "\x1b[31m";
-const ENDC: &str = "\x1b[0m";
+const BLACK: &str = "\x1b[30m";
 const BOLD: &str = "\x1b[1m";
 const UNDERLINE: &str = "\x1b[4m";
+const WHITE_BACKGROUND: &str = "\x1b[48;2;234;255;229m";
+const ENDC: &str = "\x1b[0m";
 
-pub fn clear() -> String {
+
+pub fn true_clear() -> String {
   unsafe{ CURSOR_Y = 0 };
   unsafe{ CURSOR_X = 0 };
   let cleared: String = "\n".repeat(unsafe{ HEIGHT });
   let ups: String = UP.repeat(unsafe{ HEIGHT });
-  return cleared + &ups + "\r" + PREFIX;
+  return cleared + &ups + "\r";
+}
+
+pub fn clear() -> String {
+  return true_clear() + "\r" + PREFIX;
 }
 
 pub fn clearline(len: usize) -> String {
@@ -199,12 +218,65 @@ pub fn pwd() -> String {
   return NEWLINE.to_string() + "/" + unsafe{ &PATH.path().display().to_string() } + NEWLINE + PREFIX; 
 }
 
+
+static mut LESS_LINE:usize = 0;
+
+pub fn less_from(mut n: usize) -> String {
+  let lines_len = unsafe{ LESS_LINES.len() };
+  let bound: usize = if lines_len > unsafe{HEIGHT} {unsafe{lines_len - HEIGHT}} else {0};
+  log(&format!("{} {}", n, bound));
+  n = if n < bound {n} else {bound};
+  log(&format!("{}", n));
+  unsafe{LESS_LINE = n};
+  let m:usize = if unsafe{n + HEIGHT - 1} < lines_len { unsafe{n + HEIGHT - 1} } else  { lines_len };
+  let head: Vec<&str> = unsafe{LESS_LINES[n..m].to_vec()};
+  let padding = unsafe{HEIGHT-head.len()};
+  let suffix = if n == bound {WHITE_BACKGROUND.to_string() + BLACK + "(END)" + ENDC} else {":".to_string()};
+  return NEWLINE.repeat(padding) +  &head.join("\r\n") + NEWLINE + &suffix; 
+}
+
+pub fn less_next() -> String {
+  let lines_len = unsafe{ LESS_LINES.len() };
+  let n = unsafe{LESS_LINE + 1};
+  let bound: usize = if lines_len > unsafe{HEIGHT} {unsafe{lines_len - HEIGHT}} else {0};
+  if n >= bound{
+    return "".to_string();
+  }
+  unsafe{LESS_LINE = n};
+  let m:usize = if unsafe{n + HEIGHT - 1} < lines_len { unsafe{n + HEIGHT - 1} } else  { lines_len };
+  let line = unsafe{LESS_LINES[m]};
+  let suffix = if n == bound {WHITE_BACKGROUND.to_string() + BLACK + "(END)" + ENDC} else {":".to_string()};
+  return "\r".to_string() + line + NEWLINE + &suffix; 
+}
+
+pub fn less(path_str: &str) -> String {
+  let path = unsafe{PATH.path().join(path_str).display().to_string()};
+  log(&path);
+  let resolved = resolve_path(&path);
+  log(&resolved);
+  let change:Option<&File>; 
+  if resolved == ""{
+    change = None;
+  } else {
+    change = ROOT.get_file(resolved);
+  }  
+  if !change.is_none(){
+    log(change.unwrap().path().to_str().unwrap());
+    unsafe{ LESS_LINES = change.unwrap().contents_utf8().unwrap().lines().collect() };
+    unsafe{LESS = true};
+    return less_from(0); 
+  }
+
+  return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX); 
+}
+
 pub fn help(args: &str) -> String {
     let help = "clear\t\tclear terminal \n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
+            ls\t[PATH]\tlist files in directory\n\r\
             cd\tPATH\tchange directory\n\r\
             cat\tPATH\tstdout file\n\r\
-            ls\t[PATH]\tlist files in directory\n\r\
+            less\tPATH\tview file\n\r\
             echo\tMSG\techo message\n\r\
             help\t\tprint this message \
             ";
@@ -223,8 +295,9 @@ pub fn command(cmdline: &str) -> String {
     "clear" => return clear(),
     "pwd" => return pwd(),
     "cd" => return cd(cmd_args.remainder().unwrap_or("")),
-    "cat" => return cat(cmd_args.remainder().unwrap_or("")),
     "ls" => return ls(cmd_args.remainder().unwrap_or("")),
+    "cat" => return cat(cmd_args.remainder().unwrap_or("")),
+    "less" => return less(cmd_args.remainder().unwrap_or("")),
     "help" => return help(cmd_args.remainder().unwrap_or("")),
     "echo" => return echo(cmd_args.remainder().unwrap_or("")),
     _ => {
@@ -283,6 +356,85 @@ pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> Stri
 #[wasm_bindgen]
 pub fn readchar(input: char) -> String {
     log(&format!("{:02x}", input as u32));
+    if unsafe{LESS} {
+      return less_readchar(input);
+    } else {
+      return sh_readchar(input);
+    }
+}
+
+pub fn less_readchar(input: char) -> String {
+    let mut ansi_buffer = ANSI_BUFFER.lock().unwrap();
+    if unsafe{ANSI} {
+      ansi_buffer.push(input);
+      let ansistr: String = ansi_buffer.iter().collect();
+      match &ansistr as &str {
+        UP => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(unsafe{if LESS_LINE > 0 {LESS_LINE - 1} else {0}});
+        },
+        DOWN => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(unsafe{LESS_LINE + 1});
+        },
+        PAGE_UP => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(unsafe{if LESS_LINE > HEIGHT {LESS_LINE - HEIGHT} else {0}});
+        },
+        PAGE_DOWN => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(unsafe{LESS_LINE + HEIGHT});
+        },
+        PAGE_START => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(0);
+        },
+        PAGE_END => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return less_from(usize::MAX);
+        },
+        RIGHT | LEFT => {
+          unsafe{ ANSI = false };
+          ansi_buffer.clear();
+          return "".to_string();
+        },
+        _ => {},
+      }
+      return "".to_string()
+    }
+    match input {
+      // ansi
+      '\x1b' => {
+        unsafe { ANSI = true };
+        ansi_buffer.push(input);
+        return "".to_string();
+      },
+      // quit
+      'q' => {
+        unsafe { LESS = false };
+        return clear();
+      },
+      // top
+      'g' => {
+        return less_from(0);
+      },
+      // bottom
+      'G' => {
+        return less_from(usize::MAX);
+      },
+      _ => {
+        return "".to_string();
+      }
+    }
+}
+
+pub fn sh_readchar(input: char) -> String {
     let mut ansi_buffer = ANSI_BUFFER.lock().unwrap();
     let mut input_buffer = INPUT_BUFFER.lock().unwrap();
     if unsafe{ANSI} {
