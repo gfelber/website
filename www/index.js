@@ -1,6 +1,9 @@
 import * as wasm from "wasm-backend";
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
+import { WebLinksAddon } from 'xterm-addon-web-links';
+import { WebglAddon } from 'xterm-addon-webgl';
+import { CanvasAddon } from 'xterm-addon-canvas';
 
 var term = new Terminal({
   theme: {
@@ -28,10 +31,16 @@ var term = new Terminal({
   'fontSize': 13
 });
 const fitAddon = new FitAddon();
-
 term.loadAddon(fitAddon);
+term.loadAddon(new WebLinksAddon());
+term.loadAddon(new CanvasAddon());
+term.loadAddon(new WebglAddon());
+
+
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
+addEventListener("resize", (event) => {fitAddon.fit();});
+
 
 term.write(wasm.init(term.rows, term.cols, window.location.pathname));
 term.onData(function(data) {

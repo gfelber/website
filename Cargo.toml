@@ -1,5 +1,5 @@
 [package]
-name = "website"
+name = "wasm-backend"
 version = "0.1.0"
 authors = ["gfelber <@users.noreply.github.com>"]
 edition = "2021"

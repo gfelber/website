@@ -1,4 +1,4 @@
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+const CopyPlugin = require("copy-webpack-plugin");
 const path = require('path');
 
 module.exports = {
@@ -10,8 +10,18 @@ module.exports = {
   },
   mode: "development",
   plugins: [
-    new CopyWebpackPlugin(['index.html'])
+    new CopyPlugin({
+      patterns: [
+        { from: "main.css", to: "main.css" },
+        { from: "node_modules/xterm/css/xterm.css", to: "xterm.css" },
+        { from: "index.html", to: "index.html" },
+      ],
+    }),
   ],
+  experiments: {
+    asyncWebAssembly: true,
+    syncWebAssembly: true
+  },
   devServer: {
     historyApiFallback: {
       rewrites: [{ from: /./, to: '/index.html' }], 
