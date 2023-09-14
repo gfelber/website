@@ -4,9 +4,7 @@
 mod utils;
 
 use include_dir::{include_dir, Dir, File};
-use std::sync::{Mutex, MutexGuard};
 use wasm_bindgen::prelude::*;
-use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
 use ansi_term::Colour;
 use ansi_term::Style;
@@ -25,65 +23,8 @@ extern "C" {
   fn log_char(a: Option<char>);
 }
 
-static ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
-static mut PATH: &Dir<'_> = &ROOT;
-static mut LESS_LINES: Vec<&str> = Vec::new();
-
-static mut WIDTH: usize = 0;
-static mut HEIGHT: usize = 0;
-static mut LESS: bool = false;
+const ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
 const PREFIX: &str = "$ ";
-
-#[wasm_bindgen]
-pub fn init(height: usize, width: usize, location: &str) -> String {
-  utils::set_panic_hook();
-  let mut location_str = location.to_string();
-  location_str.remove(0);
-  let path = ROOT.get_entry(location_str.clone());
-  unsafe {
-    WIDTH = width - PREFIX.len(); // remove because of PREFIX
-    HEIGHT = height;
-  }
-  if !path.is_none() {
-    if path.unwrap().as_dir().is_none() {
-      let resolved = resolve_path(&(location_str + "/.."));
-      log("works");
-      log(&resolved);
-      if !resolved.is_empty() {
-        unsafe { PATH = ROOT.get_dir(resolved).unwrap() };
-      }
-      unsafe { LESS = true };
-      unsafe { LESS_LINES = path.unwrap().as_file().unwrap().contents_utf8().unwrap().lines().collect() };
-      return less_from(0);
-    } else {
-      unsafe { PATH = path.unwrap().as_dir().unwrap() };
-    }
-  }
-  return PREFIX.to_string();
-}
-
-#[wasm_bindgen]
-pub fn readline(input: &str) -> String {
-  let mut vec = Vec::<String>::new();
-  for c in input.chars() {
-    vec.push(readchar(c));
-  }
-  return vec.join("");
-}
-
-lazy_static! {
-    static ref INPUT_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
-}
-lazy_static! {
-    static ref ANSI_BUFFER: Mutex<Vec<char>> = Mutex::new(Vec::new());
-}
-lazy_static! {
-    static ref HISTORY: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
-}
-
-static mut HISTORY_INDEX: usize = 0;
-static mut CURSOR_X: usize = 0;
-static mut CURSOR_Y: usize = 0;
 
 // ANSI
 const UP: &str = "\x1b\x5b\x41";
@@ -97,175 +38,249 @@ const PAGE_END: &str = "\x1b\x5b\x46";
 const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
-static mut ANSI: bool = false;
 
-
-pub fn true_clear() -> String {
-  unsafe { CURSOR_Y = 0 };
-  unsafe { CURSOR_X = 0 };
-  let cleared: String = "\n".repeat(unsafe { HEIGHT });
-  let ups: String = UP.repeat(unsafe { HEIGHT });
-  return cleared + &ups + "\r";
+#[wasm_bindgen]
+pub struct Term {
+  path: &'static Dir<'static>,
+  less_lines: Vec<&'static str>,
+  history: Vec<&'static str>,
+  input_buffer: Vec<char>,
+  ansi_buffer: Vec<char>,
+  history_index: usize,
+  less_line: usize,
+  cursor_x: usize,
+  cursor_y: usize,
+  height: usize,
+  width: usize,
+  less: bool,
+  ansi: bool,
 }
 
-pub fn clear() -> String {
-  return true_clear() + "\r" + PREFIX;
-}
-
-pub fn clearline(len: usize) -> String {
-  let right: String = RIGHT.repeat(len - unsafe { CURSOR_X });
-  let out: String = RETURN.repeat(len);
-  unsafe { CURSOR_X = 0 };
-  return right + &out;
-}
-
-pub fn echo(args: &str) -> String {
-  unsafe { CURSOR_Y += 1 };
-  return NEWLINE.to_string() + args + NEWLINE + PREFIX;
-}
-
-pub fn ls(path_str: &str) -> String {
-  let path = unsafe { PATH.path().join(path_str).display().to_string() };
-  let resolved = resolve_path(&path);
-  log(&resolved);
-  let change: Option<&Dir>;
-  if resolved == "" {
-    change = Some(&ROOT);
-  } else {
-    change = ROOT.get_dir(resolved);
+#[wasm_bindgen]
+impl Term {
+  #[wasm_bindgen(constructor)]
+  pub fn new() -> Self {
+    return Self {
+      path: &ROOT,
+      less_lines: vec![],
+      history: vec![],
+      input_buffer: vec![],
+      ansi_buffer: vec![],
+      history_index: 0,
+      less_line: 0,
+      cursor_x: 0,
+      cursor_y: 0,
+      height: 0,
+      width: 0,
+      less: false,
+      ansi: false,
+    };
   }
-  if !change.is_none() {
-    let mut entries: Vec<String> = Vec::new();
-    for entry in change.unwrap().entries() {
-      let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
-      if entry.as_dir().is_none() {
-        entries.push(name);
+
+  pub fn init(&mut self, height: usize, width: usize, location: &str) -> String {
+    utils::set_panic_hook();
+    let mut location_str = location.to_string();
+    location_str.remove(0);
+    let path = ROOT.get_entry(location_str.clone());
+    self.width = width - PREFIX.len(); // remove because of PREFIX
+    self.height = height;
+    if !path.is_none() {
+      if path.unwrap().as_dir().is_none() {
+        let resolved = Term::resolve_path(&(location_str + "/.."));
+        log("works");
+        log(&resolved);
+        if !resolved.is_empty() {
+          self.path = ROOT.get_dir(resolved).unwrap();
+        }
+        self.less = true;
+        self.less_lines = path.unwrap().as_file().unwrap().contents_utf8().unwrap().lines().collect();
+        return self.less_from(0);
       } else {
-        entries.push(Colour::Blue.bold().paint(&name).to_string());
+        self.path = path.unwrap().as_dir().unwrap();
       }
     }
-    return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX;
+    return PREFIX.to_string();
   }
-  return NEWLINE.to_string() + PREFIX;
-}
 
-pub fn change_url(new_url: &str) -> Result<(), JsValue> {
-  // Get a reference to the window's history object
-  let window = window().expect("Should have a window in this context");
-  let history = window.history().expect("Should have a history object in this context");
 
-  // Push the new URL onto the history stack without reloading the page
-  history.push_state_with_url(&JsValue::NULL, "", Some(new_url))
-    .map_err(|err| err.into())
-}
+  pub fn readline(&mut self, input: &str) -> String {
+    let mut vec = Vec::<String>::new();
+    for c in input.chars() {
+      vec.push(self.readchar(c));
+    }
+    return vec.join("");
+  }
 
-fn resolve_path(path: &str) -> String {
-  let components: Vec<&str> = path.split('/').collect();
-  let mut resolved_components: Vec<&str> = Vec::new();
 
-  for component in components.iter() {
-    if component == &".." {
-      // If the component is '..', remove the last resolved component
-      if !resolved_components.is_empty() {
-        resolved_components.pop();
+  pub fn true_clear(&mut self) -> String {
+    self.cursor_y = 0;
+    self.cursor_x = 0;
+    let cleared: String = "\n".repeat(self.height);
+    let ups: String = UP.repeat(self.height);
+    return cleared + &ups + "\r";
+  }
+
+  pub fn clear(&mut self) -> String {
+    return self.true_clear() + "\r" + PREFIX;
+  }
+
+  pub fn clearline(&mut self, len: usize) -> String {
+    let right: String = RIGHT.repeat(len - self.cursor_x);
+    let out: String = RETURN.repeat(len);
+    self.cursor_x = 0;
+    return right + &out;
+  }
+
+  pub fn echo(&mut self, args: &str) -> String {
+    self.cursor_y += 1;
+    return NEWLINE.to_string() + args + NEWLINE + PREFIX;
+  }
+
+  pub fn ls(&mut self, path_str: &str) -> String {
+    let path = self.path.path().join(path_str).display().to_string();
+    let resolved = Term::resolve_path(&path);
+    log(&resolved);
+    let change: Option<&Dir>;
+    if resolved == "" {
+      change = Some(&ROOT);
+    } else {
+      change = ROOT.get_dir(resolved);
+    }
+    if !change.is_none() {
+      let mut entries: Vec<String> = Vec::new();
+      for entry in change.unwrap().entries() {
+        let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
+        if entry.as_dir().is_none() {
+          entries.push(name);
+        } else {
+          entries.push(Colour::Blue.bold().paint(&name).to_string());
+        }
       }
-    } else {
-      // Otherwise, add the component to the resolved path
-      resolved_components.push(component);
+      return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX;
     }
+    return NEWLINE.to_string() + PREFIX;
   }
 
-  resolved_components.join("/")
-}
+  pub fn change_url(new_url: &str) -> Result<(), JsValue> {
+    // Get a reference to the window's history object
+    let window = window().expect("Should have a window in this context");
+    let history = window.history().expect("Should have a history object in this context");
 
-pub fn cd(path_str: &str) -> String {
-  let mut path = "".to_string();
-  if !(path_str.is_empty() || path_str == "/") {
-    if path_str.starts_with('/') {
-      path = path_str[1..].to_string();
-    } else {
-      path = unsafe { PATH.path().join(path_str).display().to_string() };
+    // Push the new URL onto the history stack without reloading the page
+    history.push_state_with_url(&JsValue::NULL, "", Some(new_url))
+      .map_err(|err| err.into())
+  }
+
+  fn resolve_path(path: &str) -> String {
+    let components: Vec<&str> = path.split('/').collect();
+    let mut resolved_components: Vec<&str> = Vec::new();
+
+    for component in components.iter() {
+      if component == &".." {
+        // If the component is '..', remove the last resolved component
+        if !resolved_components.is_empty() {
+          resolved_components.pop();
+        }
+      } else {
+        // Otherwise, add the component to the resolved path
+        resolved_components.push(component);
+      }
     }
-  }
-  log(&path);
-  let resolved = resolve_path(&path);
-  log(&resolved);
-  let change: Option<&Dir>;
-  if resolved.is_empty() {
-    change = Some(&ROOT);
-  } else {
-    change = ROOT.get_dir(resolved);
-  }
-  if !change.is_none() {
-    unsafe { PATH = &change.unwrap() };
-    let _ = change_url(&("/".to_string() + unsafe { PATH.path().to_str().unwrap() }));
-  }
-  return NEWLINE.to_string() + PREFIX;
-}
 
-pub fn cat(path_str: &str) -> String {
-  let path = unsafe { PATH.path().join(path_str).display().to_string() };
-  log(&path);
-  let resolved = resolve_path(&path);
-  log(&resolved);
-  let change: Option<&File>;
-  if resolved == "" {
-    change = None;
-  } else {
-    change = ROOT.get_file(resolved);
-  }
-  if !change.is_none() {
-    log(change.unwrap().path().to_str().unwrap());
-    return NEWLINE.to_string() + change.unwrap().contents_utf8().unwrap() + NEWLINE + PREFIX;
-  }
-  return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
-}
-
-pub fn pwd() -> String {
-  return NEWLINE.to_string() + "/" + unsafe { &PATH.path().display().to_string() } + NEWLINE + PREFIX;
-}
-
-
-static mut LESS_LINE: usize = 0;
-
-pub fn less_from(mut n: usize) -> String {
-  let lines_len = unsafe { LESS_LINES.len() };
-  let bound: usize = if lines_len > unsafe { HEIGHT } { unsafe { lines_len - HEIGHT } } else { 0 };
-  log(&format!("{} {}", n, bound));
-  n = if n < bound { n } else { bound };
-  log(&format!("{}", n));
-  unsafe { LESS_LINE = n };
-  let m: usize = if unsafe { n + HEIGHT - 1 } < lines_len { unsafe { n + HEIGHT - 1 } } else { lines_len };
-  let head: Vec<&str> = unsafe { LESS_LINES[n..m].to_vec() };
-  let padding = unsafe { HEIGHT - head.len() };
-  let suffix = if n == bound { Style::new().on(Colour::RGB(234, 255, 229)).fg(Colour::Black).paint("(END)").to_string() } else { ":".to_string() };
-  return NEWLINE.repeat(padding) + &head.join("\r\n") + NEWLINE + &suffix;
-}
-
-pub fn less(path_str: &str) -> String {
-  let path = unsafe { PATH.path().join(path_str).display().to_string() };
-  log(&path);
-  let resolved = resolve_path(&path);
-  log(&resolved);
-  let change: Option<&File>;
-  if resolved == "" {
-    change = None;
-  } else {
-    change = ROOT.get_file(resolved);
-  }
-  if !change.is_none() {
-    let _ = change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
-    log(change.unwrap().path().to_str().unwrap());
-    unsafe { LESS_LINES = change.unwrap().contents_utf8().unwrap().lines().collect() };
-    unsafe { LESS = true };
-    return less_from(0);
+    resolved_components.join("/")
   }
 
-  return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
-}
+  pub fn cd(&mut self, path_str: &str) -> String {
+    let mut path = "".to_string();
+    if !(path_str.is_empty() || path_str == "/") {
+      if path_str.starts_with('/') {
+        path = path_str[1..].to_string();
+      } else {
+        path = self.path.path().join(path_str).display().to_string();
+      }
+    }
+    log(&path);
+    let resolved = Term::resolve_path(&path);
+    log(&resolved);
+    let change: Option<&Dir>;
+    if resolved.is_empty() {
+      change = Some(&ROOT);
+    } else {
+      change = ROOT.get_dir(resolved);
+    }
+    if !change.is_none() {
+      self.path = &change.unwrap();
+      let _ = Term::change_url(&("/".to_string() + self.path.path().to_str().unwrap()));
+    }
+    return NEWLINE.to_string() + PREFIX;
+  }
 
-pub fn help(_args: &str) -> String {
-  let help = "clear\t\tclear terminal \n\r\
+  pub fn cat(&mut self, path_str: &str) -> String {
+    let path = self.path.path().join(path_str).display().to_string();
+    log(&path);
+    let resolved = Term::resolve_path(&path);
+    log(&resolved);
+    let change: Option<&File>;
+    if resolved == "" {
+      change = None;
+    } else {
+      change = ROOT.get_file(resolved);
+    }
+    if !change.is_none() {
+      log(change.unwrap().path().to_str().unwrap());
+      return NEWLINE.to_string() + change.unwrap().contents_utf8().unwrap() + NEWLINE + PREFIX;
+    }
+    return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
+  }
+
+  pub fn pwd(&mut self, _args: &str) -> String {
+    return NEWLINE.to_string() + "/" + &self.path.path().display().to_string() + NEWLINE + PREFIX;
+  }
+
+  pub fn less_from(&mut self, mut n: usize) -> String {
+    let lines_len = self.less_lines.len();
+    let bound: usize = if lines_len > self.height { lines_len - self.height } else { 0 };
+    log(&format!("{} {}", n, bound));
+    n = if n < bound { n } else { bound };
+    log(&format!("{}", n));
+    self.less_line = n;
+    let m: usize = if n + self.height - 1 < lines_len { n + self.height - 1 } else { lines_len };
+    let head: Vec<&str> = self.less_lines[n..m].to_vec();
+    let padding = self.height - head.len();
+    let suffix = if n == bound {
+      Style::new().on(Colour::RGB(234, 255, 229))
+        .fg(Colour::Black)
+        .paint("(END)").to_string()
+    } else {
+      ":".to_string()
+    };
+    return NEWLINE.repeat(padding) + &head.join("\r\n") + NEWLINE + &suffix;
+  }
+
+  pub fn less(&mut self, path_str: &str) -> String {
+    let path = self.path.path().join(path_str).display().to_string();
+    log(&path);
+    let resolved = Term::resolve_path(&path);
+    log(&resolved);
+    let change: Option<&File>;
+    if resolved == "" {
+      change = None;
+    } else {
+      change = ROOT.get_file(resolved);
+    }
+    if !change.is_none() {
+      let _ = Term::change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
+      log(change.unwrap().path().to_str().unwrap());
+      self.less_lines = change.unwrap().contents_utf8().unwrap().lines().collect();
+      self.less = true;
+      return self.less_from(0);
+    }
+
+    return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
+  }
+
+  pub fn help(&mut self, _args: &str) -> String {
+    let help = "clear\t\tclear terminal \n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
             ls\t[PATH]\tlist files in directory\n\r\
             cd\tPATH\tchange directory\n\r\
@@ -274,239 +289,235 @@ pub fn help(_args: &str) -> String {
             echo\tMSG\techo message\n\r\
             help\t\tprint this message \
             ";
-  return NEWLINE.to_string() + help + NEWLINE + PREFIX;
-}
-
-
-pub fn command(cmdline: &str) -> String {
-  let mut history = HISTORY.lock().unwrap();
-  history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
-  unsafe { HISTORY_INDEX = history.len() };
-  let mut cmd_args = cmdline.split(" ");
-  let cmdline = cmd_args.next().unwrap();
-  unsafe { CURSOR_Y += 1 };
-  return match cmdline {
-    "clear" => clear(),
-    "pwd" => pwd(),
-    "cd" => cd(cmd_args.remainder().unwrap_or("")),
-    "ls" => ls(cmd_args.remainder().unwrap_or("")),
-    "cat" => cat(cmd_args.remainder().unwrap_or("")),
-    "less" => less(cmd_args.remainder().unwrap_or("")),
-    "help" => help(cmd_args.remainder().unwrap_or("")),
-    "echo" => echo(cmd_args.remainder().unwrap_or("")),
-    _ => {
-      NEWLINE.to_string() + PREFIX
-    }
-  };
-}
-
-pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
-  let history = HISTORY.lock().unwrap();
-  match ansistr {
-    UP => {
-      if unsafe { HISTORY_INDEX > 0 } {
-        unsafe { HISTORY_INDEX -= 1 }
-        let entry = history[unsafe { HISTORY_INDEX }];
-        let out = clearline(input_buffer.len()) + entry;
-        input_buffer.clear();
-        input_buffer.extend(entry.chars());
-        unsafe { CURSOR_X = entry.len() };
-        return out;
-      }
-      return "".to_string();
-    }
-    DOWN => {
-      if history.len() != 0 && unsafe { HISTORY_INDEX < history.len() - 1 } {
-        unsafe { HISTORY_INDEX += 1 }
-        let entry = history[unsafe { HISTORY_INDEX }];
-        let out = clearline(input_buffer.len()) + entry;
-        input_buffer.clear();
-        input_buffer.extend(entry.chars());
-        unsafe { CURSOR_X = entry.len() };
-        return out;
-      }
-      let out = clearline(input_buffer.len());
-      input_buffer.clear();
-      unsafe { CURSOR_X = 0 };
-      return out;
-    }
-    RIGHT => {
-      if unsafe { CURSOR_X < input_buffer.len() } {
-        unsafe { CURSOR_X += 1 }
-        return RIGHT.to_string();
-      }
-    }
-    LEFT => {
-      if unsafe { CURSOR_X >= PREFIX.len() } {
-        unsafe { CURSOR_X -= 1 }
-        return LEFT.to_string();
-      }
-    }
-    PAGE_START => {
-      let repeat = unsafe { CURSOR_X };
-      unsafe { CURSOR_X = 0 }
-      return LEFT.repeat(repeat);
-    }
-    PAGE_END => {
-      let repeat = unsafe { input_buffer.len() - CURSOR_X };
-      unsafe { CURSOR_X = input_buffer.len() }
-      return RIGHT.repeat(repeat);
-    }
-    _ => {}
+    return NEWLINE.to_string() + help + NEWLINE + PREFIX;
   }
-  return "".to_string();
-}
 
-#[wasm_bindgen]
-pub fn readchar(input: char) -> String {
-  log(&format!("{:02x}", input as u32));
-  return if unsafe { LESS } {
-    less_readchar(input)
-  } else {
-    sh_readchar(input)
-  };
-}
 
-pub fn less_readchar(input: char) -> String {
-  let mut ansi_buffer = ANSI_BUFFER.lock().unwrap();
-  if unsafe { ANSI } {
-    ansi_buffer.push(input);
-    let ansistr: String = ansi_buffer.iter().collect();
-    match &ansistr as &str {
+  pub fn command(&mut self, cmdline: &str) -> String {
+    self.history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+    self.history_index = self.history.len();
+    let mut cmd_args = cmdline.split(" ");
+    let cmdline = cmd_args.next().unwrap();
+    self.cursor_y += 1;
+    return match cmdline {
+      "clear" => self.clear(),
+      "pwd" => self.pwd(cmd_args.remainder().unwrap_or("")),
+      "cd" => self.cd(cmd_args.remainder().unwrap_or("")),
+      "ls" => self.ls(cmd_args.remainder().unwrap_or("")),
+      "cat" => self.cat(cmd_args.remainder().unwrap_or("")),
+      "less" => self.less(cmd_args.remainder().unwrap_or("")),
+      "help" => self.help(cmd_args.remainder().unwrap_or("")),
+      "echo" => self.echo(cmd_args.remainder().unwrap_or("")),
+      _ => {
+        NEWLINE.to_string() + PREFIX
+      }
+    };
+  }
+
+  pub fn ansi(&mut self, ansistr: &str) -> String {
+    match ansistr {
       UP => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(unsafe { if LESS_LINE > 0 { LESS_LINE - 1 } else { 0 } });
+        if self.history_index > 0 {
+          self.history_index -= 1;
+          let entry = self.history[self.history_index];
+          let out = self.clearline(self.input_buffer.len()) + entry;
+          self.input_buffer.clear();
+          self.input_buffer.extend(entry.chars());
+          self.cursor_x = entry.len();
+          return out;
+        }
+        return "".to_string();
       }
       DOWN => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(unsafe { LESS_LINE + 1 });
+        if self.history.len() != 0 && self.history_index < self.history.len() - 1 {
+          self.history_index += 1;
+          let entry = self.history[self.history_index];
+          let out = self.clearline(self.input_buffer.len()) + entry;
+          self.input_buffer.clear();
+          self.input_buffer.extend(entry.chars());
+          self.cursor_x = entry.len();
+          return out;
+        }
+        let out = self.clearline(self.input_buffer.len());
+        self.input_buffer.clear();
+        self.cursor_x = 0;
+        return out;
       }
-      PAGE_UP => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(unsafe { if LESS_LINE > HEIGHT { LESS_LINE - HEIGHT } else { 0 } });
+      RIGHT => {
+        if self.cursor_x < self.input_buffer.len() {
+          self.cursor_x += 1;
+          return RIGHT.to_string();
+        }
       }
-      PAGE_DOWN => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(unsafe { LESS_LINE + HEIGHT });
+      LEFT => {
+        if self.cursor_x >= PREFIX.len() {
+          self.cursor_x -= 1;
+          return LEFT.to_string();
+        }
       }
       PAGE_START => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(0);
+        let repeat = self.cursor_x;
+        self.cursor_x = 0;
+        return LEFT.repeat(repeat);
       }
       PAGE_END => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return less_from(usize::MAX);
-      }
-      RIGHT | LEFT => {
-        unsafe { ANSI = false };
-        ansi_buffer.clear();
-        return "".to_string();
+        let repeat = self.input_buffer.len() - self.cursor_x;
+        self.cursor_x = self.input_buffer.len();
+        return RIGHT.repeat(repeat);
       }
       _ => {}
     }
     return "".to_string();
   }
-  return match input {
-    // ansi
-    '\x1b' => {
-      unsafe { ANSI = true };
-      ansi_buffer.push(input);
-      "".to_string()
+
+  pub fn readchar(&mut self, input: char) -> String {
+    log(&format!("{:02x}", input as u32));
+    return if self.less {
+      self.less_readchar(input)
+    } else {
+      self.sh_readchar(input)
+    };
+  }
+
+  pub fn less_readchar(&mut self, input: char) -> String {
+    if self.ansi {
+      self.ansi_buffer.push(input);
+      let ansistr: String = self.ansi_buffer.iter().collect();
+      match &ansistr as &str {
+        UP => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(if self.less_line > 0 { self.less_line - 1 } else { 0 });
+        }
+        DOWN => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(self.less_line + 1);
+        }
+        PAGE_UP => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(if self.less_line > self.height { self.less_line - self.height } else { 0 });
+        }
+        PAGE_DOWN => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(self.less_line + self.height);
+        }
+        PAGE_START => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(0);
+        }
+        PAGE_END => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return self.less_from(usize::MAX);
+        }
+        RIGHT | LEFT => {
+          self.ansi = false;
+          self.ansi_buffer.clear();
+          return "".to_string();
+        }
+        _ => {}
+      }
+      return "".to_string();
     }
-    // quit
-    'q' => {
-      let _ = change_url(&("/".to_string() + unsafe { PATH.path().to_str().unwrap() }));
-      unsafe { LESS = false };
-      clear()
+    return match input {
+      // ansi
+      '\x1b' => {
+        self.ansi = true;
+        self.ansi_buffer.push(input);
+        "".to_string()
+      }
+      // quit
+      'q' => {
+        let _ = Term::change_url(&("/".to_string() + self.path.path().to_str().unwrap()));
+        self.less = false;
+        self.clear()
+      }
+      // top
+      'g' => {
+        self.less_from(0)
+      }
+      // bottom
+      'G' => {
+        self.less_from(usize::MAX)
+      }
+      _ => {
+        "".to_string()
+      }
+    };
+  }
+
+  pub fn sh_readchar(&mut self, input: char) -> String {
+    if self.ansi {
+      self.ansi_buffer.push(input);
+      let ansistr: String = self.ansi_buffer.iter().collect();
+      let out: String = self.ansi(&ansistr);
+      if out != "" || self.ansi_buffer.len() == 3 {
+        self.ansi = false;
+        self.ansi_buffer.clear();
+      }
+      return out;
     }
-    // top
-    'g' => {
-      less_from(0)
-    }
-    // bottom
-    'G' => {
-      less_from(usize::MAX)
-    }
-    _ => {
-      "".to_string()
-    }
-  };
+    return match input {
+      '\r' | '\n' => {
+        let cmd: String = self.input_buffer.iter().collect();
+        log(&cmd);
+        self.input_buffer.clear();
+        self.cursor_x = 0;
+        self.command(&cmd)
+      }
+      // clear line
+      '\x15' => {
+        let len = self.input_buffer.len();
+        self.input_buffer.clear();
+        self.clearline(len)
+      }
+      // clear
+      '\x0c' => {
+        self.input_buffer.clear();
+        self.clear()
+      }
+      // TAB
+      '\x09' => {
+        self.input_buffer.extend("  ".chars());
+        self.cursor_x += 2;
+        "  ".to_string()
+      }
+      // return key
+      '\x7f' => {
+        if self.input_buffer.is_empty() {
+          return "".to_string();
+        }
+        let cursor_x = self.cursor_x - 1;
+        self.input_buffer.remove(cursor_x);
+        let left = LEFT.repeat(self.input_buffer.len() - cursor_x);
+        let inputstr: String = self.input_buffer.iter().collect();
+        let out = self.clearline(self.input_buffer.len() + 1) + inputstr.as_str() + &left;
+        self.cursor_x = cursor_x;
+        out
+      }
+      // ansi
+      '\x1b' => {
+        self.ansi = true;
+        self.ansi_buffer.push(input);
+        "".to_string()
+      }
+      _ => {
+        if self.cursor_x < self.input_buffer.len() {
+          self.input_buffer[self.cursor_x] = input;
+        } else if self.cursor_x <= self.width {
+          self.cursor_x += 1;
+          self.input_buffer.push(input);
+        } else {
+          log("reached EOL");
+          return "".to_string();
+        }
+        input.to_string()
+      }
+    };
+  }
 }
 
-pub fn sh_readchar(input: char) -> String {
-  let mut ansi_buffer = ANSI_BUFFER.lock().unwrap();
-  let mut input_buffer = INPUT_BUFFER.lock().unwrap();
-  if unsafe { ANSI } {
-    ansi_buffer.push(input);
-    let ansistr: String = ansi_buffer.iter().collect();
-    let out: String = ansi(&ansistr, &mut input_buffer);
-    if out != "" || ansi_buffer.len() == 3 {
-      unsafe { ANSI = false };
-      ansi_buffer.clear();
-    }
-    return out;
-  }
-  return match input {
-    '\r' | '\n' => {
-      let cmd: String = input_buffer.iter().collect();
-      log(&cmd);
-      input_buffer.clear();
-      unsafe { CURSOR_X = 0 };
-      command(&cmd)
-    }
-    // clear line
-    '\x15' => {
-      let len = input_buffer.len();
-      input_buffer.clear();
-      clearline(len)
-    }
-    // clear
-    '\x0c' => {
-      input_buffer.clear();
-      clear()
-    }
-    // TAB
-    '\x09' => {
-      input_buffer.extend("  ".chars());
-      unsafe { CURSOR_X += 2 };
-      "  ".to_string()
-    }
-    // return key
-    '\x7f' => {
-      if input_buffer.is_empty() {
-        return "".to_string();
-      }
-      let cursor_x = unsafe { CURSOR_X - 1 };
-      input_buffer.remove(cursor_x);
-      let left = LEFT.repeat(input_buffer.len() - cursor_x);
-      let inputstr: String = input_buffer.iter().collect();
-      let out = clearline(input_buffer.len() + 1) + inputstr.as_str() + &left;
-      unsafe { CURSOR_X = cursor_x };
-      out
-    }
-    // ansi
-    '\x1b' => {
-      unsafe { ANSI = true };
-      ansi_buffer.push(input);
-      "".to_string()
-    }
-    _ => {
-      if unsafe { CURSOR_X < input_buffer.len() } {
-        unsafe { input_buffer[CURSOR_X] = input }
-      } else if unsafe { CURSOR_X <= WIDTH } {
-        unsafe { CURSOR_X += 1 };
-        input_buffer.push(input);
-      } else {
-        log("reached EOL");
-        return "".to_string();
-      }
-      input.to_string()
-    }
-  };
-}

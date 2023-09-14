@@ -1,4 +1,4 @@
-import * as wasm from "wasm-backend";
+import {Term} from "wasm-backend";
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
@@ -31,6 +31,7 @@ var term = new Terminal({
   'fontSize': 13
 });
 const fitAddon = new FitAddon();
+const wasmterm = new Term();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
@@ -40,12 +41,12 @@ term.loadAddon(new WebglAddon());
 term.open(document.getElementById('terminal'));
 
 fitAddon.fit();
-term.write(wasm.init(term.rows, term.cols, window.location.pathname));
+term.write(wasmterm.init(term.rows, term.cols, window.location.pathname));
 
-addEventListener("resize", (event) => {
+addEventListener("resize", () => {
   fitAddon.fit();
-  term.write("\r" + wasm.init(term.rows, term.cols, window.location.pathname));
+  term.write("\r" + wasmterm.init(term.rows, term.cols, window.location.pathname));
 });
 term.onData(function(data) {
-  term.write(wasm.readline(data));
+  term.write(wasmterm.readline(data));
 });
