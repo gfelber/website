@@ -14,7 +14,10 @@ module.exports = {
       patterns: [
         { from: "main.css", to: "main.css" },
         { from: "node_modules/xterm/css/xterm.css", to: "xterm.css" },
+        { from: "node_modules/@fontsource-variable/source-code-pro/index.css", to: "font.css" },
         { from: "index.html", to: "index.html" },
+        { from: "index.html", to: "404.html" },
+        { from: "img", to: "img" },
       ],
     }),
   ],
