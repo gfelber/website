@@ -1,5 +1,6 @@
 #![feature(str_split_remainder)]
 
+
 mod utils;
 
 use include_dir::{include_dir, Dir, File};
@@ -35,6 +36,7 @@ const PREFIX: &str = "$ ";
 
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String {
+  utils::set_panic_hook();
   log(location);
   log(ROOT.get_file("test_file").unwrap().contents_utf8().unwrap());
   log(ROOT.get_dir("test_dir/test_dir2").unwrap().path().to_str().unwrap());
@@ -287,6 +289,7 @@ pub fn less(path_str: &str) -> String {
   }
 
   return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);;
+  ;
   ;
 }
 
