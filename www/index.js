@@ -38,11 +38,16 @@ term.loadAddon(new WebglAddon());
 
 
 term.open(document.getElementById('terminal'));
+
 fitAddon.fit();
-addEventListener("resize", (event) => {fitAddon.fit();});
-
-
 term.write(wasm.init(term.rows, term.cols, window.location.pathname));
+
+addEventListener("resize", (event) => {
+  fitAddon.fit();
+  term.write("\r" + wasm.init(term.rows, term.cols, window.location.pathname));
+});
+
+
 term.onData(function(data) {
   term.write(wasm.readline(data));
 });
