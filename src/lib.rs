@@ -8,9 +8,7 @@ use std::sync::{Mutex, MutexGuard};
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
-use web_sys::History;
 use web_sys::window;
-use std::str::Lines;
 
 
 #[wasm_bindgen]
@@ -288,12 +286,10 @@ pub fn less(path_str: &str) -> String {
     return less_from(0);
   }
 
-  return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);;
-  ;
-  ;
+  return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
 }
 
-pub fn help(args: &str) -> String {
+pub fn help(_args: &str) -> String {
   let help = "clear\t\tclear terminal \n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
             ls\t[PATH]\tlist files in directory\n\r\
