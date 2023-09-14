@@ -27,6 +27,7 @@ module.exports = {
     syncWebAssembly: true
   },
   devServer: {
+    hot: true,
     historyApiFallback: {
       rewrites: [{ from: /./, to: '/index.html' }], 
     }

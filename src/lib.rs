@@ -8,6 +8,8 @@ use std::sync::{Mutex, MutexGuard};
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
+use ansi_term::Colour;
+use ansi_term::Style;
 use web_sys::window;
 
 
@@ -35,9 +37,6 @@ const PREFIX: &str = "$ ";
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String {
   utils::set_panic_hook();
-  log(location);
-  log(ROOT.get_file("test_file").unwrap().contents_utf8().unwrap());
-  log(ROOT.get_dir("test_dir/test_dir2").unwrap().path().to_str().unwrap());
   let mut location_str = location.to_string();
   location_str.remove(0);
   let path = ROOT.get_entry(location_str.clone());
@@ -99,16 +98,6 @@ const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 const NEWLINE: &str = "\n\r";
 
 static mut ANSI: bool = false;
-const HEADER_PURPLE: &str = "\x1b[95m";
-const BLUE: &str = "\x1b[34m";
-const GREEN: &str = "\x1b[32m";
-const YELLOW: &str = "\x1b[33m";
-const RED: &str = "\x1b[31m";
-const BLACK: &str = "\x1b[30m";
-const BOLD: &str = "\x1b[1m";
-const UNDERLINE: &str = "\x1b[4m";
-const WHITE_BACKGROUND: &str = "\x1b[48;2;234;255;229m";
-const ENDC: &str = "\x1b[0m";
 
 
 pub fn true_clear() -> String {
@@ -147,12 +136,12 @@ pub fn ls(path_str: &str) -> String {
   }
   if !change.is_none() {
     let mut entries: Vec<String> = Vec::new();
-    for entry in unsafe { change.unwrap().entries() } {
+    for entry in change.unwrap().entries() {
       let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
       if entry.as_dir().is_none() {
         entries.push(name);
       } else {
-        entries.push(BLUE.to_string() + BOLD + &name + ENDC);
+        entries.push(Colour::Blue.bold().paint(&name).to_string());
       }
     }
     return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX;
@@ -171,7 +160,7 @@ pub fn change_url(new_url: &str) -> Result<(), JsValue> {
 }
 
 fn resolve_path(path: &str) -> String {
-  let mut components: Vec<&str> = path.split('/').collect();
+  let components: Vec<&str> = path.split('/').collect();
   let mut resolved_components: Vec<&str> = Vec::new();
 
   for component in components.iter() {
@@ -199,7 +188,7 @@ pub fn cd(path_str: &str) -> String {
     }
   }
   log(&path);
-  let mut resolved = resolve_path(&path);
+  let resolved = resolve_path(&path);
   log(&resolved);
   let change: Option<&Dir>;
   if resolved.is_empty() {
@@ -249,22 +238,8 @@ pub fn less_from(mut n: usize) -> String {
   let m: usize = if unsafe { n + HEIGHT - 1 } < lines_len { unsafe { n + HEIGHT - 1 } } else { lines_len };
   let head: Vec<&str> = unsafe { LESS_LINES[n..m].to_vec() };
   let padding = unsafe { HEIGHT - head.len() };
-  let suffix = if n == bound { WHITE_BACKGROUND.to_string() + BLACK + "(END)" + ENDC } else { ":".to_string() };
+  let suffix = if n == bound { Style::new().on(Colour::RGB(234, 255, 229)).fg(Colour::Black).paint("(END)").to_string() } else { ":".to_string() };
   return NEWLINE.repeat(padding) + &head.join("\r\n") + NEWLINE + &suffix;
-}
-
-pub fn less_next() -> String {
-  let lines_len = unsafe { LESS_LINES.len() };
-  let n = unsafe { LESS_LINE + 1 };
-  let bound: usize = if lines_len > unsafe { HEIGHT } { unsafe { lines_len - HEIGHT } } else { 0 };
-  if n >= bound {
-    return "".to_string();
-  }
-  unsafe { LESS_LINE = n };
-  let m: usize = if unsafe { n + HEIGHT - 1 } < lines_len { unsafe { n + HEIGHT - 1 } } else { lines_len };
-  let line = unsafe { LESS_LINES[m] };
-  let suffix = if n == bound { WHITE_BACKGROUND.to_string() + BLACK + "(END)" + ENDC } else { ":".to_string() };
-  return "\r".to_string() + line + NEWLINE + &suffix;
 }
 
 pub fn less(path_str: &str) -> String {
@@ -286,7 +261,7 @@ pub fn less(path_str: &str) -> String {
     return less_from(0);
   }
 
-  return return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
+  return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
 }
 
 pub fn help(_args: &str) -> String {
@@ -310,19 +285,19 @@ pub fn command(cmdline: &str) -> String {
   let mut cmd_args = cmdline.split(" ");
   let cmdline = cmd_args.next().unwrap();
   unsafe { CURSOR_Y += 1 };
-  match cmdline {
-    "clear" => return clear(),
-    "pwd" => return pwd(),
-    "cd" => return cd(cmd_args.remainder().unwrap_or("")),
-    "ls" => return ls(cmd_args.remainder().unwrap_or("")),
-    "cat" => return cat(cmd_args.remainder().unwrap_or("")),
-    "less" => return less(cmd_args.remainder().unwrap_or("")),
-    "help" => return help(cmd_args.remainder().unwrap_or("")),
-    "echo" => return echo(cmd_args.remainder().unwrap_or("")),
+  return match cmdline {
+    "clear" => clear(),
+    "pwd" => pwd(),
+    "cd" => cd(cmd_args.remainder().unwrap_or("")),
+    "ls" => ls(cmd_args.remainder().unwrap_or("")),
+    "cat" => cat(cmd_args.remainder().unwrap_or("")),
+    "less" => less(cmd_args.remainder().unwrap_or("")),
+    "help" => help(cmd_args.remainder().unwrap_or("")),
+    "echo" => echo(cmd_args.remainder().unwrap_or("")),
     _ => {
-      return NEWLINE.to_string() + PREFIX;
+      NEWLINE.to_string() + PREFIX
     }
-  }
+  };
 }
 
 pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> String {
@@ -385,11 +360,11 @@ pub fn ansi(ansistr: &str, input_buffer: &mut MutexGuard<'_, Vec<char>>) -> Stri
 #[wasm_bindgen]
 pub fn readchar(input: char) -> String {
   log(&format!("{:02x}", input as u32));
-  if unsafe { LESS } {
-    return less_readchar(input);
+  return if unsafe { LESS } {
+    less_readchar(input)
   } else {
-    return sh_readchar(input);
-  }
+    sh_readchar(input)
+  };
 }
 
 pub fn less_readchar(input: char) -> String {
@@ -437,31 +412,31 @@ pub fn less_readchar(input: char) -> String {
     }
     return "".to_string();
   }
-  match input {
+  return match input {
     // ansi
     '\x1b' => {
       unsafe { ANSI = true };
       ansi_buffer.push(input);
-      return "".to_string();
+      "".to_string()
     }
     // quit
     'q' => {
       let _ = change_url(&("/".to_string() + unsafe { PATH.path().to_str().unwrap() }));
       unsafe { LESS = false };
-      return clear();
+      clear()
     }
     // top
     'g' => {
-      return less_from(0);
+      less_from(0)
     }
     // bottom
     'G' => {
-      return less_from(usize::MAX);
+      less_from(usize::MAX)
     }
     _ => {
-      return "".to_string();
+      "".to_string()
     }
-  }
+  };
 }
 
 pub fn sh_readchar(input: char) -> String {
@@ -477,30 +452,30 @@ pub fn sh_readchar(input: char) -> String {
     }
     return out;
   }
-  match input {
+  return match input {
     '\r' | '\n' => {
       let cmd: String = input_buffer.iter().collect();
       log(&cmd);
       input_buffer.clear();
       unsafe { CURSOR_X = 0 };
-      return command(&cmd);
+      command(&cmd)
     }
     // clear line
     '\x15' => {
       let len = input_buffer.len();
       input_buffer.clear();
-      return clearline(len);
+      clearline(len)
     }
     // clear
     '\x0c' => {
       input_buffer.clear();
-      return clear();
+      clear()
     }
     // TAB
     '\x09' => {
       input_buffer.extend("  ".chars());
       unsafe { CURSOR_X += 2 };
-      return "  ".to_string();
+      "  ".to_string()
     }
     // return key
     '\x7f' => {
@@ -513,13 +488,13 @@ pub fn sh_readchar(input: char) -> String {
       let inputstr: String = input_buffer.iter().collect();
       let out = clearline(input_buffer.len() + 1) + inputstr.as_str() + &left;
       unsafe { CURSOR_X = cursor_x };
-      return out;
+      out
     }
     // ansi
     '\x1b' => {
       unsafe { ANSI = true };
       ansi_buffer.push(input);
-      return "".to_string();
+      "".to_string()
     }
     _ => {
       if unsafe { CURSOR_X < input_buffer.len() } {
@@ -531,7 +506,7 @@ pub fn sh_readchar(input: char) -> String {
         log("reached EOL");
         return "".to_string();
       }
-      return input.to_string();
+      input.to_string()
     }
-  }
+  };
 }
