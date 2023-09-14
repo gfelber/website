@@ -112,7 +112,7 @@ impl Term {
   }
 
 
-  pub fn true_clear(&mut self) -> String {
+  fn true_clear(&mut self) -> String {
     self.cursor_y = 0;
     self.cursor_x = 0;
     let cleared: String = "\n".repeat(self.height);
@@ -124,19 +124,19 @@ impl Term {
     return self.true_clear() + "\r" + PREFIX;
   }
 
-  pub fn clearline(&mut self, len: usize) -> String {
+  fn clearline(&mut self, len: usize) -> String {
     let right: String = RIGHT.repeat(len - self.cursor_x);
     let out: String = RETURN.repeat(len);
     self.cursor_x = 0;
     return right + &out;
   }
 
-  pub fn echo(&mut self, args: &str) -> String {
+  fn echo(&mut self, args: &str) -> String {
     self.cursor_y += 1;
     return NEWLINE.to_string() + args + NEWLINE + PREFIX;
   }
 
-  pub fn ls(&mut self, path_str: &str) -> String {
+  fn ls(&mut self, path_str: &str) -> String {
     let path = self.path.path().join(path_str).display().to_string();
     let resolved = Term::resolve_path(&path);
     log(&resolved);
@@ -161,7 +161,7 @@ impl Term {
     return NEWLINE.to_string() + PREFIX;
   }
 
-  pub fn change_url(new_url: &str) -> Result<(), JsValue> {
+  fn change_url(new_url: &str) -> Result<(), JsValue> {
     // Get a reference to the window's history object
     let window = window().expect("Should have a window in this context");
     let history = window.history().expect("Should have a history object in this context");
@@ -190,7 +190,7 @@ impl Term {
     resolved_components.join("/")
   }
 
-  pub fn cd(&mut self, path_str: &str) -> String {
+  fn cd(&mut self, path_str: &str) -> String {
     let mut path = "".to_string();
     if !(path_str.is_empty() || path_str == "/") {
       if path_str.starts_with('/') {
@@ -215,7 +215,7 @@ impl Term {
     return NEWLINE.to_string() + PREFIX;
   }
 
-  pub fn cat(&mut self, path_str: &str) -> String {
+  fn cat(&mut self, path_str: &str) -> String {
     let path = self.path.path().join(path_str).display().to_string();
     log(&path);
     let resolved = Term::resolve_path(&path);
@@ -233,11 +233,11 @@ impl Term {
     return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
   }
 
-  pub fn pwd(&mut self, _args: &str) -> String {
+  fn pwd(&mut self, _args: &str) -> String {
     return NEWLINE.to_string() + "/" + &self.path.path().display().to_string() + NEWLINE + PREFIX;
   }
 
-  pub fn less_from(&mut self, mut n: usize) -> String {
+  fn less_from(&mut self, mut n: usize) -> String {
     let lines_len = self.less_lines.len();
     let bound: usize = if lines_len > self.height { lines_len - self.height } else { 0 };
     log(&format!("{} {}", n, bound));
@@ -257,7 +257,7 @@ impl Term {
     return NEWLINE.repeat(padding) + &head.join("\r\n") + NEWLINE + &suffix;
   }
 
-  pub fn less(&mut self, path_str: &str) -> String {
+  fn less(&mut self, path_str: &str) -> String {
     let path = self.path.path().join(path_str).display().to_string();
     log(&path);
     let resolved = Term::resolve_path(&path);
@@ -279,7 +279,7 @@ impl Term {
     return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
   }
 
-  pub fn help(&mut self, _args: &str) -> String {
+  fn help(&mut self, _args: &str) -> String {
     let help = "clear\t\tclear terminal \n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
             ls\t[PATH]\tlist files in directory\n\r\
@@ -293,7 +293,7 @@ impl Term {
   }
 
 
-  pub fn command(&mut self, cmdline: &str) -> String {
+  fn command(&mut self, cmdline: &str) -> String {
     self.history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
     self.history_index = self.history.len();
     let mut cmd_args = cmdline.split(" ");
@@ -314,7 +314,7 @@ impl Term {
     };
   }
 
-  pub fn ansi(&mut self, ansistr: &str) -> String {
+  fn ansi(&mut self, ansistr: &str) -> String {
     match ansistr {
       UP => {
         if self.history_index > 0 {
@@ -370,7 +370,7 @@ impl Term {
     return "".to_string();
   }
 
-  pub fn readchar(&mut self, input: char) -> String {
+  fn readchar(&mut self, input: char) -> String {
     log(&format!("{:02x}", input as u32));
     return if self.less {
       self.less_readchar(input)
@@ -379,7 +379,7 @@ impl Term {
     };
   }
 
-  pub fn less_readchar(&mut self, input: char) -> String {
+  fn less_readchar(&mut self, input: char) -> String {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
@@ -450,7 +450,7 @@ impl Term {
     };
   }
 
-  pub fn sh_readchar(&mut self, input: char) -> String {
+  fn sh_readchar(&mut self, input: char) -> String {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
