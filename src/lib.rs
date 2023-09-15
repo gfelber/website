@@ -2,8 +2,9 @@
 
 
 mod utils;
+mod consts;
 
-use include_dir::{include_dir, Dir, File};
+use include_dir::{Dir, File};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use ansi_term::Colour;
@@ -15,37 +16,17 @@ use web_sys::window;
 extern "C" {
   #[wasm_bindgen(js_namespace = console)]
   fn log(s: &str);
-
-  #[wasm_bindgen(js_namespace = console, js_name = log)]
-  fn log_u32(a: u32);
-
-  #[wasm_bindgen(js_namespace = console, js_name = log)]
-  fn log_char(a: Option<char>);
 }
 
-const ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
 const PREFIX: &str = "$ ";
-
-// ANSI
-const UP: &str = "\x1b\x5b\x41";
-const DOWN: &str = "\x1b\x5b\x42";
-const RIGHT: &str = "\x1b\x5b\x43";
-const LEFT: &str = "\x1b\x5b\x44";
-const PAGE_DOWN: &str = "\x1b\x5b\x36\x7e";
-const PAGE_UP: &str = "\x1b\x5b\x35\x7e";
-const PAGE_START: &str = "\x1b\x5b\x48";
-const PAGE_END: &str = "\x1b\x5b\x46";
-const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
-const NEWLINE: &str = "\n\r";
-
 
 #[wasm_bindgen]
 pub struct Term {
   path: &'static Dir<'static>,
-  less_lines: Vec<&'static str>,
   history: Vec<&'static str>,
   input_buffer: Vec<char>,
   ansi_buffer: Vec<char>,
+  less_file: &'static str,
   history_index: usize,
   less_line: usize,
   cursor_x: usize,
@@ -60,12 +41,13 @@ pub struct Term {
 impl Term {
   #[wasm_bindgen(constructor)]
   pub fn new() -> Self {
+    utils::set_panic_hook();
     return Self {
-      path: &ROOT,
-      less_lines: vec![],
+      path: &consts::ROOT,
       history: vec![],
       input_buffer: vec![],
       ansi_buffer: vec![],
+      less_file: "",
       history_index: 0,
       less_line: 0,
       cursor_x: 0,
@@ -78,10 +60,9 @@ impl Term {
   }
 
   pub fn init(&mut self, height: usize, width: usize, location: &str) -> String {
-    utils::set_panic_hook();
     let mut location_str = location.to_string();
     location_str.remove(0);
-    let path = ROOT.get_entry(location_str.clone());
+    let path = consts::ROOT.get_entry(location_str.clone());
     self.width = width - PREFIX.len(); // remove because of PREFIX
     self.height = height;
     if !path.is_none() {
@@ -90,10 +71,10 @@ impl Term {
         log("works");
         log(&resolved);
         if !resolved.is_empty() {
-          self.path = ROOT.get_dir(resolved).unwrap();
+          self.path = consts::ROOT.get_dir(resolved.clone()).unwrap();
         }
         self.less = true;
-        self.less_lines = path.unwrap().as_file().unwrap().contents_utf8().unwrap().lines().collect();
+        self.less_file = Box::leak(Box::new(resolved));
         return self.less_from(0);
       } else {
         self.path = path.unwrap().as_dir().unwrap();
@@ -116,7 +97,7 @@ impl Term {
     self.cursor_y = 0;
     self.cursor_x = 0;
     let cleared: String = "\n".repeat(self.height);
-    let ups: String = UP.repeat(self.height);
+    let ups: String = consts::UP.repeat(self.height);
     return cleared + &ups + "\r";
   }
 
@@ -125,15 +106,15 @@ impl Term {
   }
 
   fn clearline(&mut self, len: usize) -> String {
-    let right: String = RIGHT.repeat(len - self.cursor_x);
-    let out: String = RETURN.repeat(len);
+    let right: String = consts::RIGHT.repeat(len - self.cursor_x);
+    let out: String = consts::RETURN.repeat(len);
     self.cursor_x = 0;
     return right + &out;
   }
 
   fn echo(&mut self, args: &str) -> String {
     self.cursor_y += 1;
-    return NEWLINE.to_string() + args + NEWLINE + PREFIX;
+    return consts::NEWLINE.to_string() + args + consts::NEWLINE + PREFIX;
   }
 
   fn ls(&mut self, path_str: &str) -> String {
@@ -142,9 +123,9 @@ impl Term {
     log(&resolved);
     let change: Option<&Dir>;
     if resolved == "" {
-      change = Some(&ROOT);
+      change = Some(&consts::ROOT);
     } else {
-      change = ROOT.get_dir(resolved);
+      change = consts::ROOT.get_dir(resolved);
     }
     if !change.is_none() {
       let mut entries: Vec<String> = Vec::new();
@@ -156,9 +137,9 @@ impl Term {
           entries.push(Colour::Blue.bold().paint(&name).to_string());
         }
       }
-      return NEWLINE.to_string() + &entries.join(" ") + NEWLINE + PREFIX;
+      return consts::NEWLINE.to_string() + &entries.join(" ") + consts::NEWLINE + PREFIX;
     }
-    return NEWLINE.to_string() + PREFIX;
+    return consts::NEWLINE.to_string() + PREFIX;
   }
 
   fn change_url(new_url: &str) -> Result<(), JsValue> {
@@ -204,15 +185,15 @@ impl Term {
     log(&resolved);
     let change: Option<&Dir>;
     if resolved.is_empty() {
-      change = Some(&ROOT);
+      change = Some(&consts::ROOT);
     } else {
-      change = ROOT.get_dir(resolved);
+      change = consts::ROOT.get_dir(resolved);
     }
     if !change.is_none() {
       self.path = &change.unwrap();
       let _ = Term::change_url(&("/".to_string() + self.path.path().to_str().unwrap()));
     }
-    return NEWLINE.to_string() + PREFIX;
+    return consts::NEWLINE.to_string() + PREFIX;
   }
 
   fn cat(&mut self, path_str: &str) -> String {
@@ -224,28 +205,29 @@ impl Term {
     if resolved == "" {
       change = None;
     } else {
-      change = ROOT.get_file(resolved);
+      change = consts::ROOT.get_file(resolved);
     }
     if !change.is_none() {
       log(change.unwrap().path().to_str().unwrap());
-      return NEWLINE.to_string() + change.unwrap().contents_utf8().unwrap() + NEWLINE + PREFIX;
+      return consts::NEWLINE.to_string() + change.unwrap().contents_utf8().unwrap() + consts::NEWLINE + PREFIX;
     }
-    return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
+    return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
   fn pwd(&mut self, _args: &str) -> String {
-    return NEWLINE.to_string() + "/" + &self.path.path().display().to_string() + NEWLINE + PREFIX;
+    return consts::NEWLINE.to_string() + "/" + &self.path.path().display().to_string() + consts::NEWLINE + PREFIX;
   }
 
   fn less_from(&mut self, mut n: usize) -> String {
-    let lines_len = self.less_lines.len();
+    let less_lines: Vec<&str> = consts::ROOT.get_file(self.less_file).unwrap().contents_utf8().unwrap().lines().collect();
+    let lines_len = less_lines.len();
     let bound: usize = if lines_len > self.height { lines_len - self.height } else { 0 };
     log(&format!("{} {}", n, bound));
     n = if n < bound { n } else { bound };
     log(&format!("{}", n));
     self.less_line = n;
     let m: usize = if n + self.height - 1 < lines_len { n + self.height - 1 } else { lines_len };
-    let head: Vec<&str> = self.less_lines[n..m].to_vec();
+    let head: Vec<&str> = less_lines[n..m].to_vec();
     let padding = self.height - head.len();
     let suffix = if n == bound {
       Style::new().on(Colour::RGB(234, 255, 229))
@@ -254,7 +236,7 @@ impl Term {
     } else {
       ":".to_string()
     };
-    return NEWLINE.repeat(padding) + &head.join("\r\n") + NEWLINE + &suffix;
+    return consts::NEWLINE.repeat(padding) + &head.join("\r\n") + consts::NEWLINE + &suffix;
   }
 
   fn less(&mut self, path_str: &str) -> String {
@@ -266,17 +248,17 @@ impl Term {
     if resolved == "" {
       change = None;
     } else {
-      change = ROOT.get_file(resolved);
+      change = consts::ROOT.get_file(resolved.clone());
     }
     if !change.is_none() {
       let _ = Term::change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
       log(change.unwrap().path().to_str().unwrap());
-      self.less_lines = change.unwrap().contents_utf8().unwrap().lines().collect();
+      self.less_file = Box::leak(Box::new(resolved));
       self.less = true;
       return self.less_from(0);
     }
 
-    return format!("{}{}: No such file or directory{}{}", NEWLINE, path_str, NEWLINE.to_string(), PREFIX);
+    return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
   fn help(&mut self, _args: &str) -> String {
@@ -289,7 +271,7 @@ impl Term {
             echo\tMSG\techo message\n\r\
             help\t\tprint this message \
             ";
-    return NEWLINE.to_string() + help + NEWLINE + PREFIX;
+    return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
   }
 
 
@@ -309,14 +291,14 @@ impl Term {
       "help" => self.help(cmd_args.remainder().unwrap_or("")),
       "echo" => self.echo(cmd_args.remainder().unwrap_or("")),
       _ => {
-        NEWLINE.to_string() + PREFIX
+        consts::NEWLINE.to_string() + PREFIX
       }
     };
   }
 
   fn ansi(&mut self, ansistr: &str) -> String {
     match ansistr {
-      UP => {
+      consts::UP => {
         if self.history_index > 0 {
           self.history_index -= 1;
           let entry = self.history[self.history_index];
@@ -328,7 +310,7 @@ impl Term {
         }
         return "".to_string();
       }
-      DOWN => {
+      consts::DOWN => {
         if self.history.len() != 0 && self.history_index < self.history.len() - 1 {
           self.history_index += 1;
           let entry = self.history[self.history_index];
@@ -343,27 +325,27 @@ impl Term {
         self.cursor_x = 0;
         return out;
       }
-      RIGHT => {
+      consts::RIGHT => {
         if self.cursor_x < self.input_buffer.len() {
           self.cursor_x += 1;
-          return RIGHT.to_string();
+          return consts::RIGHT.to_string();
         }
       }
-      LEFT => {
+      consts::LEFT => {
         if self.cursor_x >= PREFIX.len() {
           self.cursor_x -= 1;
-          return LEFT.to_string();
+          return consts::LEFT.to_string();
         }
       }
-      PAGE_START => {
+      consts::PAGE_START => {
         let repeat = self.cursor_x;
         self.cursor_x = 0;
-        return LEFT.repeat(repeat);
+        return consts::LEFT.repeat(repeat);
       }
-      PAGE_END => {
+      consts::PAGE_END => {
         let repeat = self.input_buffer.len() - self.cursor_x;
         self.cursor_x = self.input_buffer.len();
-        return RIGHT.repeat(repeat);
+        return consts::RIGHT.repeat(repeat);
       }
       _ => {}
     }
@@ -384,37 +366,37 @@ impl Term {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
       match &ansistr as &str {
-        UP => {
+        consts::UP => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(if self.less_line > 0 { self.less_line - 1 } else { 0 });
         }
-        DOWN => {
+        consts::DOWN => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(self.less_line + 1);
         }
-        PAGE_UP => {
+        consts::PAGE_UP => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(if self.less_line > self.height { self.less_line - self.height } else { 0 });
         }
-        PAGE_DOWN => {
+        consts::PAGE_DOWN => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(self.less_line + self.height);
         }
-        PAGE_START => {
+        consts::PAGE_START => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(0);
         }
-        PAGE_END => {
+        consts::PAGE_END => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return self.less_from(usize::MAX);
         }
-        RIGHT | LEFT => {
+        consts::RIGHT | consts::LEFT => {
           self.ansi = false;
           self.ansi_buffer.clear();
           return "".to_string();
@@ -493,7 +475,7 @@ impl Term {
         }
         let cursor_x = self.cursor_x - 1;
         self.input_buffer.remove(cursor_x);
-        let left = LEFT.repeat(self.input_buffer.len() - cursor_x);
+        let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
         let inputstr: String = self.input_buffer.iter().collect();
         let out = self.clearline(self.input_buffer.len() + 1) + inputstr.as_str() + &left;
         self.cursor_x = cursor_x;
