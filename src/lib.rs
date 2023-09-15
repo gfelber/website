@@ -262,14 +262,15 @@ impl Term {
   }
 
   fn help(&mut self, _args: &str) -> String {
-    let help = "clear\t\tclear terminal \n\r\
+    let help = "\
+            clear\t\tclear terminal\n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
             ls\t[PATH]\tlist files in directory\n\r\
             cd\tPATH\tchange directory\n\r\
             cat\tPATH\tstdout file\n\r\
             less\tPATH\tview file\n\r\
             echo\tMSG\techo message\n\r\
-            help\t\tprint this message \
+            help\t\tprint this message\
             ";
     return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
   }
