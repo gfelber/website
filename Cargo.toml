@@ -3,6 +3,9 @@ name = "wasm-backend"
 version = "0.1.0"
 authors = ["gfelber <@users.noreply.github.com>"]
 edition = "2021"
+license = "GPL-3"
+description = "terminal backend in rust wasm"
+repository = "https://github.com/gfelber/website"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
