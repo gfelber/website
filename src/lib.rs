@@ -23,8 +23,8 @@ impl Term {
   #[wasm_bindgen(constructor)]
   pub fn new() -> Self {
     utils::set_panic_hook();
-    return Self{
-      app:Box::new(app::EmptyApp::new()),
+    return Self {
+      app: Box::new(app::EmptyApp::new()),
       state: Box::new(termstate::TermState::new()),
     };
   }
@@ -66,11 +66,12 @@ impl Term {
   fn readchar(&mut self, input: char) -> String {
     let x = self.state.cursor_x;
     let y = self.state.cursor_y;
+    utils::log(&format!("{:02x}", input as u32));
     let (app, out) = self.app.readchar(self.state.deref_mut(), input);
-    if app.is_some(){
+    if app.is_some() {
       self.app = app.unwrap();
     }
-    utils::log(&format!("({}|{})->({}|{}){:02x}", x, y, self.state.cursor_x, self.state.cursor_y, input as u32));
+    utils::log(&format!("({}|{})->({}|{})", x, y, self.state.cursor_x, self.state.cursor_y));
     return out;
   }
 }

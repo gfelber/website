@@ -276,11 +276,11 @@ impl App for Shell{
         }
         let cursor_x = state.cursor_x - (PREFIX.len() + 1);
         utils::log(&format!("{}/{}", cursor_x, self.input_buffer.len()));
-        self.input_buffer.remove(cursor_x);
         let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
+        let mut out = self.clearline(state);
+        self.input_buffer.remove(cursor_x);
         let inputstr: String = self.input_buffer.iter().collect();
-        self.input_buffer.push(' ');
-        let out = self.clearline(state) + inputstr.as_str() + &left;
+        out = out + inputstr.as_str() + " " + &left;
         state.cursor_x = cursor_x + PREFIX.len();
         (None, out)
       }

@@ -44,6 +44,10 @@ pub fn resolve_path(path: &str) -> String {
     }
   }
 
-  resolved_components.join("/")
+  let mut out = resolved_components.join("/");
+  if out.starts_with("/"){
+    out.remove(0);
+  }
+  return out;
 }
 
