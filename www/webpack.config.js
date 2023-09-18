@@ -2,10 +2,10 @@ const CopyPlugin = require("copy-webpack-plugin");
 const path = require('path');
 
 module.exports = {
-  entry: "/bootstrap.js",
+  entry: "/index.js",
   output: {
     path: path.resolve(__dirname, "dist"),
-    filename: "bootstrap.js",
+    filename: "index.js",
     publicPath: "/",
   },
   mode: "development",
@@ -16,6 +16,7 @@ module.exports = {
         { from: "node_modules/xterm/css/xterm.css", to: "xterm.css" },
         { from: "node_modules/@fontsource-variable/source-code-pro/index.css", to: "font.css" },
         { from: "node_modules/@fontsource-variable/source-code-pro/files", to: "files" },
+        { from: "node_modules/wasm-backend", to: "wasm" },
         { from: "index.html", to: "index.html" },
         { from: "index.html", to: "404.html" },
         { from: "img", to: "img" },
@@ -25,6 +26,9 @@ module.exports = {
   experiments: {
     asyncWebAssembly: true,
     syncWebAssembly: true
+  },
+  watchOptions: {
+    aggregateTimeout: 600,
   },
   devServer: {
     hot: true,

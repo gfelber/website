@@ -1,4 +1,5 @@
 #![feature(str_split_remainder)]
+#![feature(negative_impls)]
 
 
 mod utils;
@@ -8,19 +9,33 @@ mod shell;
 mod less;
 mod termstate;
 
-use std::ops::DerefMut;
 use wasm_bindgen::prelude::*;
+use lazy_static::lazy_static;
+use std::ops::DerefMut;
+use std::sync::Mutex;
 
+lazy_static! {
+    static ref TERM: Mutex<Term> = Mutex::new(Term::new());
+}
 
 #[wasm_bindgen]
+pub fn init(height: usize, width: usize, location: &str) -> String {
+  let mut term = TERM.lock().unwrap();
+  return term.init(height, width, location);
+}
+
+#[wasm_bindgen]
+pub fn readline(input: &str) -> String {
+  let mut term = TERM.lock().unwrap();
+  return term.readline(input);
+}
+
 pub struct Term {
   app: Box<dyn app::App>,
   state: Box<termstate::TermState>,
 }
 
-#[wasm_bindgen]
 impl Term {
-  #[wasm_bindgen(constructor)]
   pub fn new() -> Self {
     utils::set_panic_hook();
     return Self {

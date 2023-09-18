@@ -12,6 +12,39 @@ pub struct Less{
   ansi: bool,
 }
 
+impl App for Less{
+  fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
+    if self.ansi {
+      self.ansi_buffer.push(input);
+      let ansistr: String = self.ansi_buffer.iter().collect();
+      return (None, self.ansi(state, &ansistr));
+    }
+    return match input {
+      // ansi
+      '\x1b' => {
+        self.ansi = true;
+        self.ansi_buffer.push(input);
+        (None, "".to_string())
+      }
+      // quit
+      'q' => {
+        let _ = utils::change_url(&("/".to_string() + state.path.path().to_str().unwrap()));
+        (Some(Box::new(Shell::new())), Shell::clear(state))
+      }
+      // top
+      'g' => {
+        (None, self.less_from(state, 0))
+      }
+      // bottom
+      'G' => {
+        (None, self.less_from(state, usize::MAX))
+      }
+      _ => {
+        (None, "".to_string())
+      }
+    };
+  }
+}
 impl Less{
   
   pub fn new() -> Self {
@@ -102,40 +135,6 @@ impl Less{
         "".to_string()
       }
       _ => "".to_string()
-    };
-  }
-}
-
-impl App for Less{
-  fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
-    if self.ansi {
-      self.ansi_buffer.push(input);
-      let ansistr: String = self.ansi_buffer.iter().collect();
-      return (None, self.ansi(state, &ansistr));
-    }
-    return match input {
-      // ansi
-      '\x1b' => {
-        self.ansi = true;
-        self.ansi_buffer.push(input);
-        (None, "".to_string())
-      }
-      // quit
-      'q' => {
-        let _ = utils::change_url(&("/".to_string() + state.path.path().to_str().unwrap()));
-        (Some(Box::new(Shell::new())), Shell::clear(state))
-      }
-      // top
-      'g' => {
-        (None, self.less_from(state, 0))
-      }
-      // bottom
-      'G' => {
-        (None, self.less_from(state, usize::MAX))
-      }
-      _ => {
-        (None, "".to_string())
-      }
     };
   }
 }

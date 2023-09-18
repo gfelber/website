@@ -15,6 +15,78 @@ pub struct Shell{
   ansi: bool,
 }
 
+impl App for Shell{
+  fn readchar(&mut self, state: &mut TermState, mut input: char) -> (Option<Box<dyn App>>, String) {
+    if self.ansi {
+      self.ansi_buffer.push(input);
+      let ansistr: String = self.ansi_buffer.iter().collect();
+      let out: String = self.ansi(state, &ansistr);
+      if out != "" || self.ansi_buffer.len() == 3 {
+        self.ansi = false;
+        self.ansi_buffer.clear();
+      }
+      return (None, out);
+    }
+    return match input {
+      '\r' | '\n' => {
+        let cmd: String = self.input_buffer.iter().collect();
+        utils::log(&cmd);
+        self.input_buffer.clear();
+        state.cursor_x = PREFIX.len();
+        self.command(state, &cmd)
+      }
+      // clear line
+      '\x15' => {
+        let out = self.clearline(state);
+        self.input_buffer.clear();
+        state.cursor_x = PREFIX.len();
+        (None, out + PREFIX)
+      }
+      // clear
+      '\x0c' => {
+        self.input_buffer.clear();
+        (None, Shell::clear(state))
+      }
+      // return key
+      '\x7f' => {
+        if self.input_buffer.is_empty() {
+          return (None, "".to_string())
+        }
+        let cursor_x = state.cursor_x - (PREFIX.len() + 1);
+        utils::log(&format!("{}/{}", cursor_x, self.input_buffer.len()));
+        let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
+        let mut out = self.clearline(state);
+        self.input_buffer.remove(cursor_x);
+        let inputstr: String = self.input_buffer.iter().collect();
+        out = out + inputstr.as_str() + " " + &left;
+        state.cursor_x = cursor_x + PREFIX.len();
+        (None, out)
+      }
+      // ansi
+      '\x1b' => {
+        self.ansi = true;
+        self.ansi_buffer.push(input);
+        (None, "".to_string())
+      }
+      _ => {
+        // TAB change to whitespace
+        if input == '\x09'{
+          input = ' ';
+        }
+        if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
+          self.input_buffer[state.cursor_x - PREFIX.len()] = input;
+        } else if state.cursor_x <= state.width {
+          state.cursor_x += 1;
+          self.input_buffer.push(input);
+        } else {
+          utils::log("reached EOL");
+          return (None, "".to_string());
+        }
+        (None, input.to_string())
+      }
+    };
+  }
+}
 impl Shell{
 
   pub fn new() -> Self{
@@ -234,78 +306,5 @@ impl Shell{
       _ => {}
     }
     return "".to_string();
-  }
-}
-
-impl App for Shell{
-  fn readchar(&mut self, state: &mut TermState, mut input: char) -> (Option<Box<dyn App>>, String) {
-    if self.ansi {
-      self.ansi_buffer.push(input);
-      let ansistr: String = self.ansi_buffer.iter().collect();
-      let out: String = self.ansi(state, &ansistr);
-      if out != "" || self.ansi_buffer.len() == 3 {
-        self.ansi = false;
-        self.ansi_buffer.clear();
-      }
-      return (None, out);
-    }
-    return match input {
-      '\r' | '\n' => {
-        let cmd: String = self.input_buffer.iter().collect();
-        utils::log(&cmd);
-        self.input_buffer.clear();
-        state.cursor_x = PREFIX.len();
-        self.command(state, &cmd)
-      }
-      // clear line
-      '\x15' => {
-        let out = self.clearline(state);
-        self.input_buffer.clear();
-        state.cursor_x = PREFIX.len();
-        (None, out + PREFIX)
-      }
-      // clear
-      '\x0c' => {
-        self.input_buffer.clear();
-        (None, Shell::clear(state))
-      }
-      // return key
-      '\x7f' => {
-        if self.input_buffer.is_empty() {
-          return (None, "".to_string())
-        }
-        let cursor_x = state.cursor_x - (PREFIX.len() + 1);
-        utils::log(&format!("{}/{}", cursor_x, self.input_buffer.len()));
-        let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
-        let mut out = self.clearline(state);
-        self.input_buffer.remove(cursor_x);
-        let inputstr: String = self.input_buffer.iter().collect();
-        out = out + inputstr.as_str() + " " + &left;
-        state.cursor_x = cursor_x + PREFIX.len();
-        (None, out)
-      }
-      // ansi
-      '\x1b' => {
-        self.ansi = true;
-        self.ansi_buffer.push(input);
-        (None, "".to_string())
-      }
-      _ => {
-        // TAB change to whitespace
-        if input == '\x09'{
-          input = ' ';
-        }
-        if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
-          self.input_buffer[state.cursor_x - PREFIX.len()] = input;
-        } else if state.cursor_x <= state.width {
-          state.cursor_x += 1;
-          self.input_buffer.push(input);
-        } else {
-          utils::log("reached EOL");
-          return (None, "".to_string());
-        }
-        (None, input.to_string())
-      }
-    };
   }
 }
