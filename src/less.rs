@@ -5,14 +5,14 @@ use crate::{consts, utils};
 use crate::shell::Shell;
 use crate::termstate::TermState;
 
-pub struct Less{
+pub struct Less {
   ansi_buffer: Vec<char>,
   file: &'static str,
   line: usize,
   ansi: bool,
 }
 
-impl App for Less{
+impl App for Less {
   fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
     if self.ansi {
       self.ansi_buffer.push(input);
@@ -45,10 +45,10 @@ impl App for Less{
     };
   }
 }
-impl Less{
-  
+
+impl Less {
   pub fn new() -> Self {
-    Self{
+    Self {
       ansi_buffer: vec![],
       file: "",
       line: 0,
@@ -97,7 +97,7 @@ impl Less{
     return Err(format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string()));
   }
 
-  fn ansi(&mut self, state: &mut TermState, ansistr: &str) -> String{
+  fn ansi(&mut self, state: &mut TermState, ansistr: &str) -> String {
     return match ansistr {
       consts::UP => {
         self.ansi = false;

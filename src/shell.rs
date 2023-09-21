@@ -7,7 +7,7 @@ use crate::termstate::TermState;
 
 const PREFIX: &str = "$ ";
 
-pub struct Shell{
+pub struct Shell {
   history: Vec<&'static str>,
   input_buffer: Vec<char>,
   ansi_buffer: Vec<char>,
@@ -15,7 +15,7 @@ pub struct Shell{
   ansi: bool,
 }
 
-impl App for Shell{
+impl App for Shell {
   fn readchar(&mut self, state: &mut TermState, mut input: char) -> (Option<Box<dyn App>>, String) {
     if self.ansi {
       self.ansi_buffer.push(input);
@@ -50,7 +50,7 @@ impl App for Shell{
       // return key
       '\x7f' => {
         if self.input_buffer.is_empty() {
-          return (None, "".to_string())
+          return (None, "".to_string());
         }
         let cursor_x = state.cursor_x - (PREFIX.len() + 1);
         utils::log(&format!("{}/{}", cursor_x, self.input_buffer.len()));
@@ -70,7 +70,7 @@ impl App for Shell{
       }
       _ => {
         // TAB change to whitespace
-        if input == '\x09'{
+        if input == '\x09' {
           input = ' ';
         }
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
@@ -87,10 +87,10 @@ impl App for Shell{
     };
   }
 }
-impl Shell{
 
-  pub fn new() -> Self{
-    Self{
+impl Shell {
+  pub fn new() -> Self {
+    Self {
       history: vec![],
       input_buffer: vec![],
       ansi_buffer: vec![],
@@ -99,13 +99,13 @@ impl Shell{
     }
   }
 
-  pub fn clear(state:&mut TermState) -> String {
+  pub fn clear(state: &mut TermState) -> String {
     let out = state.clear() + "\r" + PREFIX;
     state.cursor_x = PREFIX.len();
     return out;
   }
 
-  fn clearline(&mut self, state:&mut TermState) -> String {
+  fn clearline(&mut self, state: &mut TermState) -> String {
     let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
     let out: String = consts::RETURN.repeat(self.input_buffer.len());
     state.cursor_x = PREFIX.len();
@@ -216,7 +216,7 @@ impl Shell{
     return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
   }
 
-  fn less(&mut self, state: &mut TermState, args: &str) -> (Option<Box<dyn App>>, String){
+  fn less(&mut self, state: &mut TermState, args: &str) -> (Option<Box<dyn App>>, String) {
     let mut less = Less::new();
     return match less.less(state, args) {
       Ok(result) => (Some(Box::new(less)), result),
@@ -225,8 +225,7 @@ impl Shell{
         state.cursor_y += 2;
         (None, error + PREFIX)
       }
-
-    }
+    };
   }
 
 

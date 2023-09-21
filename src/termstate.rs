@@ -10,14 +10,14 @@ pub struct TermState {
 }
 
 impl TermState {
-  pub fn new() -> Self{
-    return Self{
+  pub fn new() -> Self {
+    return Self {
       path: &consts::ROOT,
       cursor_x: 0,
       cursor_y: 0,
       height: 0,
       width: 0,
-    }
+    };
   }
   pub fn clear(&mut self) -> String {
     self.cursor_y = 0;
@@ -26,5 +26,4 @@ impl TermState {
     let ups: String = consts::UP.repeat(self.height);
     return cleared + &ups + "\r";
   }
-
 }

@@ -7,6 +7,7 @@ extern "C" {
   #[wasm_bindgen(js_namespace = console)]
   pub fn log(s: &str);
 }
+
 pub fn set_panic_hook() {
   // When the `console_error_panic_hook` feature is enabled, we can call the
   // `set_panic_hook` function at least once during initialization, and then
@@ -45,7 +46,7 @@ pub fn resolve_path(path: &str) -> String {
   }
 
   let mut out = resolved_components.join("/");
-  if out.starts_with("/"){
+  if out.starts_with("/") {
     out.remove(0);
   }
   return out;

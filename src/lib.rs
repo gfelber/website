@@ -20,6 +20,7 @@ lazy_static! {
 
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String {
+  utils::log("init");
   let mut term = TERM.lock().unwrap();
   return term.init(height, width, location);
 }
