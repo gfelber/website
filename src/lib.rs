@@ -13,6 +13,19 @@ use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
 use std::ops::DerefMut;
 use std::sync::Mutex;
+use log::info;
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(feature = "console_log")] {
+        fn init_log() {
+            use log::Level;
+            console_log::init_with_level(Level::Trace).expect("error initializing log");
+        }
+    } else {
+        fn init_log() {}
+    }
+}
 
 lazy_static! {
     static ref TERM: Mutex<Term> = Mutex::new(Term::new());
@@ -20,8 +33,15 @@ lazy_static! {
 
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String {
-  utils::log("init");
+  info!("init");
   let mut term = TERM.lock().unwrap();
+  #[cfg(debug_assertions)]
+  {
+    if !term.init {
+      init_log();
+      utils::set_panic_hook();
+    }
+  }
   return term.init(height, width, location);
 }
 
@@ -34,18 +54,20 @@ pub fn readline(input: &str) -> String {
 pub struct Term {
   app: Box<dyn app::App>,
   state: Box<termstate::TermState>,
+  init: bool,
 }
 
 impl Term {
   pub fn new() -> Self {
-    utils::set_panic_hook();
     return Self {
       app: Box::new(app::EmptyApp::new()),
       state: Box::new(termstate::TermState::new()),
+      init: false,
     };
   }
 
   pub fn init(&mut self, height: usize, width: usize, location: &str) -> String {
+    self.init = true;
     let mut location_str = location.to_string();
     location_str.remove(0);
     let path = consts::ROOT.get_entry(location_str.clone());
@@ -54,8 +76,8 @@ impl Term {
     if !path.is_none() {
       if path.unwrap().as_dir().is_none() {
         let resolved = utils::resolve_path(&(location_str.clone() + "/.."));
-        utils::log("works");
-        utils::log(&resolved);
+        info!("works");
+        info!("{}", resolved);
         if !resolved.is_empty() {
           self.state.path = consts::ROOT.get_dir(resolved.clone()).unwrap();
         }
@@ -82,12 +104,12 @@ impl Term {
   fn readchar(&mut self, input: char) -> String {
     let x = self.state.cursor_x;
     let y = self.state.cursor_y;
-    utils::log(&format!("{:02x}", input as u32));
+    info!("{:02x}", input as u32);
     let (app, out) = self.app.readchar(self.state.deref_mut(), input);
     if app.is_some() {
       self.app = app.unwrap();
     }
-    utils::log(&format!("({}|{})->({}|{})", x, y, self.state.cursor_x, self.state.cursor_y));
+    info!("({}|{})->({}|{})", x, y, self.state.cursor_x, self.state.cursor_y);
     return out;
   }
 }

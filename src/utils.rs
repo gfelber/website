@@ -1,12 +1,5 @@
 use wasm_bindgen::JsValue;
-use wasm_bindgen::prelude::wasm_bindgen;
 use web_sys::window;
-
-#[wasm_bindgen]
-extern "C" {
-  #[wasm_bindgen(js_namespace = console)]
-  pub fn log(s: &str);
-}
 
 pub fn set_panic_hook() {
   // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -34,14 +27,20 @@ pub fn resolve_path(path: &str) -> String {
   let mut resolved_components: Vec<&str> = Vec::new();
 
   for component in components.iter() {
-    if component == &".." {
-      // If the component is '..', remove the last resolved component
-      if !resolved_components.is_empty() {
-        resolved_components.pop();
+    match component {
+      &".." => {
+        // If the component is '..', remove the last resolved component
+        if !resolved_components.is_empty() {
+          resolved_components.pop();
+        }
+      },
+      &"." | &"" => {
+        // If the component is '.' or empty, ignore
+      },
+      _ => {
+        // Otherwise, add the component to the resolved path
+        resolved_components.push(component);
       }
-    } else {
-      // Otherwise, add the component to the resolved path
-      resolved_components.push(component);
     }
   }
 

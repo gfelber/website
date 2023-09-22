@@ -1,7 +1,9 @@
 use ansi_term::{Colour, Style};
 use include_dir::File;
 use crate::app::App;
+use log::info;
 use crate::{consts, utils};
+use crate::consts::NEWLINE;
 use crate::shell::Shell;
 use crate::termstate::TermState;
 
@@ -59,9 +61,9 @@ impl Less {
     let less_lines: Vec<&str> = consts::ROOT.get_file(self.file).unwrap().contents_utf8().unwrap().lines().collect();
     let lines_len = less_lines.len();
     let bound: usize = if lines_len > state.height { lines_len - state.height } else { 0 };
-    utils::log(&format!("{} {}", n, bound));
+    info!("{}", format!("{} {}", n, bound));
     n = if n < bound { n } else { bound };
-    utils::log(&format!("{}", n));
+    info!("{}", format!("{}", n));
     self.line = n;
     let m: usize = if n + state.height - 1 < lines_len { n + state.height - 1 } else { lines_len };
     let head: Vec<&str> = less_lines[n..m].to_vec();
@@ -73,14 +75,14 @@ impl Less {
     } else {
       ":".to_string()
     };
-    return consts::NEWLINE.repeat(padding) + &head.join("\r\n") + consts::NEWLINE + &suffix;
+    return consts::NEWLINE.repeat(padding) + &head.join(NEWLINE) + consts::NEWLINE + &suffix;
   }
 
   pub fn less(&mut self, state: &mut TermState, path_str: &str) -> Result<String, String> {
     let path = state.path.path().join(path_str).display().to_string();
-    utils::log(&path);
+    info!("{}", path);
     let resolved = utils::resolve_path(&path);
-    utils::log(&resolved);
+    info!("{}", resolved);
     let change: Option<&File>;
     if resolved == "" {
       change = None;
@@ -89,7 +91,7 @@ impl Less {
     }
     if !change.is_none() {
       let _ = utils::change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
-      utils::log(change.unwrap().path().to_str().unwrap());
+      info!("{}", change.unwrap().path().to_str().unwrap());
       self.file = Box::leak(Box::new(resolved));
       return Ok(self.less_from(state, 0));
     }

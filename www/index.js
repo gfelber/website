@@ -28,7 +28,7 @@ var term = new Terminal({
     brightWhite:	'#e6e6e6',
   },
   'fontFamily': 'Source Code Pro',
-  'fontSize': 13
+  'fontSize': 14
 });
 const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);

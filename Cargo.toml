@@ -11,7 +11,8 @@ repository = "https://github.com/gfelber/website"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "console_log"]
+
 
 [dependencies]
 wasm-bindgen = "0.2.87"
@@ -24,6 +25,10 @@ include_dir = "0.7.3"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 ansi_term = "0.12.1"
 lazy_static = { version = "1.4.0", features = [] }
+console_log = { version = "1", features = ["color"], optional = true}
+cfg-if = "1.0.0"
+log = { version = "0.4", features = [] }
+clap = { version = "4.4.4", features = ["derive"] }
 
 [dependencies.web-sys]
 version = "0.3.64"
