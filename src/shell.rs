@@ -1,11 +1,15 @@
+use std::sync::Mutex;
+
 use ansi_term::Colour;
+use clap::Parser;
 use include_dir::{Dir, DirEntry, File};
-use crate::app::App;
+use lazy_static::lazy_static;
+use log::info;
+
 use crate::{consts, utils};
+use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
-use log::info;
-use clap::Parser;
 
 const PREFIX: &str = "$ ";
 const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot\t4069\tJan 1 1970 ";
@@ -40,8 +44,11 @@ struct Ls {
   list: bool,
 }
 
+lazy_static! {
+    static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
+}
+
 pub struct Shell {
-  history: Vec<&'static str>,
   input_buffer: Vec<char>,
   ansi_buffer: Vec<char>,
   history_index: usize,
@@ -88,7 +95,7 @@ impl App for Shell {
         let cursor_x = state.cursor_x - (PREFIX.len() + 1);
         info!("{}/{}", cursor_x, self.input_buffer.len());
         let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
-        let mut out = self.clearline(state);
+        let mut out = self.clearline(state) + PREFIX;
         self.input_buffer.remove(cursor_x);
         let inputstr: String = self.input_buffer.iter().collect();
         out = out + inputstr.as_str() + " " + &left;
@@ -101,7 +108,8 @@ impl App for Shell {
         self.ansi_buffer.push(input);
         (None, "".to_string())
       }
-      _ => {
+      // only printable characters
+      c if c >= ' ' => {
         // TAB change to whitespace
         if input == '\x09' {
           input = ' ';
@@ -117,17 +125,18 @@ impl App for Shell {
         }
         (None, input.to_string())
       }
+      _ => (None, "".to_string())
     };
   }
 }
 
 impl Shell {
   pub fn new() -> Self {
+    let history = CMD_HISTORY.lock().unwrap();
     Self {
-      history: vec![],
       input_buffer: vec![],
       ansi_buffer: vec![],
-      history_index: 0,
+      history_index: history.len(),
       ansi: false,
     }
   }
@@ -140,8 +149,8 @@ impl Shell {
 
   fn clearline(&mut self, state: &mut TermState) -> String {
     let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
-    let out: String = consts::RETURN.repeat(self.input_buffer.len());
-    state.cursor_x = PREFIX.len();
+    let out: String = consts::RETURN.repeat(self.input_buffer.len() + PREFIX.len());
+    state.cursor_x = 0;
     return right + &out;
   }
 
@@ -288,7 +297,7 @@ impl Shell {
       info!("{}", change.unwrap().path().to_str().unwrap());
       let lines: Vec<&str> = change.unwrap().contents_utf8().unwrap().lines().collect();
       state.cursor_y += lines.len() + 2;
-      state.cursor_x = PREFIX.len() + 2;
+      state.cursor_x = PREFIX.len();
       return consts::NEWLINE.to_string() + &lines.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
     }
     state.cursor_y += 2;
@@ -328,8 +337,9 @@ impl Shell {
 
 
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> (Option<Box<dyn App>>, String) {
-    self.history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
-    self.history_index = self.history.len();
+    let mut history = CMD_HISTORY.lock().unwrap();
+    history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+    self.history_index = history.len();
     let mut cmd_args = cmdline.split(" ");
     let cmd = cmd_args.next().unwrap();
     return match cmd {
@@ -350,12 +360,13 @@ impl Shell {
 
 
   fn ansi(&mut self, state: &mut TermState, ansistr: &str) -> String {
+    let history = CMD_HISTORY.lock().unwrap();
     match ansistr {
       consts::UP => {
         if self.history_index > 0 {
           self.history_index -= 1;
-          let entry = self.history[self.history_index];
-          let out = self.clearline(state) + entry;
+          let entry = history[self.history_index];
+          let out = self.clearline(state) + PREFIX + entry;
           self.input_buffer.clear();
           self.input_buffer.extend(entry.chars());
           state.cursor_x = entry.len() + PREFIX.len();
@@ -364,16 +375,16 @@ impl Shell {
         return "".to_string();
       }
       consts::DOWN => {
-        if self.history.len() != 0 && self.history_index < self.history.len() - 1 {
+        if history.len() != 0 && self.history_index < history.len() - 1 {
           self.history_index += 1;
-          let entry = self.history[self.history_index];
-          let out = self.clearline(state) + entry;
+          let entry = history[self.history_index];
+          let out = self.clearline(state) + PREFIX + entry;
           self.input_buffer.clear();
           self.input_buffer.extend(entry.chars());
-          state.cursor_x = entry.len();
+          state.cursor_x = entry.len() + PREFIX.len();
           return out;
         }
-        let out = self.clearline(state);
+        let out = self.clearline(state) + PREFIX;
         self.input_buffer.clear();
         state.cursor_x = PREFIX.len();
         return out;
