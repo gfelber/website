@@ -27,8 +27,8 @@ var term = new Terminal({
     white:	'#d3d7cf',
     brightWhite:	'#e6e6e6',
   },
-  'fontFamily': 'Source Code Pro Variable',
-  'fontSize': 14
+  fontFamily: 'Source Code Pro Variable',
+  fontSize: 14
 });
 const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
@@ -36,16 +36,35 @@ term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
 term.loadAddon(new WebglAddon());
 
+function init() {
+  let domterm = document.getElementById('terminal');
+  domterm.innerText = "";
+  term.open(domterm);
+  fitAddon.fit();
+  console.log(document.fonts.check('14pt Source Code Pro Variable'));
+  term.write(wasm.init(term.rows, term.cols, window.location.pathname));
+}
 
-term.open(document.getElementById('terminal'));
+var loaded = document.readyState === "complete" || document.readyState === "interactive"
+document.addEventListener('DOMContentLoaded', () => {
+  loaded = true;
+  console.log("loaded")
+  if (font) init();
+})
 
-fitAddon.fit();
-term.write(wasm.init(term.rows, term.cols, window.location.pathname));
+var font = false
+document.fonts.ready.then(() => {
+  font = true
+  console.log("font")
+  if (loaded) init();
+});
 
 addEventListener("resize", () => {
   fitAddon.fit();
   term.write("\r" + wasm.init(term.rows, term.cols, window.location.pathname));
 });
+
+
 term.onData(function(data) {
   term.write(wasm.readline(data));
 });
