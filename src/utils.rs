@@ -33,10 +33,10 @@ pub fn resolve_path(path: &str) -> String {
         if !resolved_components.is_empty() {
           resolved_components.pop();
         }
-      },
+      }
       &"." | &"" => {
         // If the component is '.' or empty, ignore
-      },
+      }
       _ => {
         // Otherwise, add the component to the resolved path
         resolved_components.push(component);

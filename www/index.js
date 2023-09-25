@@ -27,7 +27,7 @@ var term = new Terminal({
     white:	'#d3d7cf',
     brightWhite:	'#e6e6e6',
   },
-  'fontFamily': 'Source Code Pro',
+  'fontFamily': 'Source Code Pro Variable',
   'fontSize': 14
 });
 const fitAddon = new FitAddon();

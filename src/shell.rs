@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use ansi_term::Colour;
 use include_dir::{Dir, DirEntry, File};
 use crate::app::App;
@@ -109,7 +108,7 @@ impl App for Shell {
         }
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
           self.input_buffer[state.cursor_x - PREFIX.len()] = input;
-        } else if state.cursor_x <= state.width {
+        } else if state.cursor_x < state.width - 1 {
           state.cursor_x += 1;
           self.input_buffer.push(input);
         } else {
@@ -157,28 +156,14 @@ impl Shell {
     let path = state.path.path().join(path_str.clone()).display().to_string();
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
-    let change: Option<&DirEntry> = if !resolved.is_empty() {
-      consts::ROOT.get_entry(resolved.clone())
-    } else {
-      None
-    };
+    let change: Option<&DirEntry> = consts::ROOT.get_entry(resolved.clone());
     if resolved.is_empty() || change.is_some() {
-      if resolved.is_empty() || change.unwrap().as_dir().is_some() {
+      if !lsargs.directory && (resolved.is_empty() || change.unwrap().as_dir().is_some()) {
         let dir: &Dir = if resolved.is_empty() {
           &consts::ROOT
         } else {
           &change.unwrap().as_dir().unwrap()
         };
-        if lsargs.directory {
-          state.cursor_x = PREFIX.len();
-          state.cursor_y += 2;
-          let formatted_filename = Colour::Blue.bold().paint(path_str).to_string();
-          if lsargs.list {
-            return consts::NEWLINE.to_string() + DIR_PREFIX + &formatted_filename + consts::NEWLINE + PREFIX;
-          } else {
-            return consts::NEWLINE.to_string() + &formatted_filename + consts::NEWLINE + PREFIX;
-          }
-        }
         let prefix = if lsargs.recursive {
           path_str.clone() + ":" + consts::NEWLINE
         } else {
@@ -210,7 +195,7 @@ impl Shell {
             }
           }
         }
-        if !lsargs.list{
+        if !lsargs.list {
           entries.push(consts::NEWLINE.to_string());
         }
         state.cursor_x = PREFIX.len();
@@ -236,9 +221,18 @@ impl Shell {
       } else {
         state.cursor_x = PREFIX.len();
         state.cursor_y += 2;
-        let filename = &change.unwrap().path().file_name().unwrap_or(OsStr::new(".")).to_string_lossy().to_string();
+        let mut filename = if change.is_some() {
+          change.unwrap().path().file_name().unwrap().to_string_lossy().to_string()
+        } else {
+          ".".to_string()
+        };
+        let mut prefix = FILE_PREFIX;
+        if lsargs.directory && (resolved.is_empty() || change.unwrap().as_dir().is_some()) {
+          filename = Colour::Blue.bold().paint(filename).to_string();
+          prefix = DIR_PREFIX;
+        }
         if lsargs.list {
-          return consts::NEWLINE.to_string() + FILE_PREFIX + &filename + consts::NEWLINE + PREFIX;
+          return consts::NEWLINE.to_string() + prefix + &filename + consts::NEWLINE + PREFIX;
         } else {
           return consts::NEWLINE.to_string() + &filename + consts::NEWLINE + PREFIX;
         }
