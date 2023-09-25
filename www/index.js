@@ -34,14 +34,16 @@ const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
-term.loadAddon(new WebglAddon());
+if (!window.chrome || !navigator.userAgentData.mobile) {
+  term.loadAddon(new WebglAddon());
+}
 
 function init() {
   let domterm = document.getElementById('terminal');
   domterm.innerText = "";
   term.open(domterm);
   fitAddon.fit();
-  console.log(document.fonts.check('14pt Source Code Pro Variable'));
+  console.log(document.fonts.check('14px Source Code Pro Variable'));
   term.write(wasm.init(term.rows, term.cols, window.location.pathname));
 }
 
