@@ -34,10 +34,10 @@ impl Entry{
     return self.get_file_rec(&files)
   }
 
-  pub async fn load(&self) -> Result<String, String> {
+  pub fn load(&self) -> Result<String, String> {
     let url = ROOT_URL.to_string()+self.url;
     info!("loading url: {}", url);
-    utils::fetch(url).await
+    utils::fetch(url)
   }
 
 }

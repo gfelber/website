@@ -1,8 +1,5 @@
 use wasm_bindgen::JsValue;
-use web_sys::window;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{Request, RequestInit, RequestMode, Response};
+use web_sys::{window, XmlHttpRequest};
 
 pub fn set_panic_hook() {
   // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -57,25 +54,23 @@ pub fn resolve_path(path: &str) -> String {
   }
   out
 }
-pub async fn fetch(url: String) -> Result<String, String> {
-  let mut opts = RequestInit::new();
-  opts.method("GET");
-  opts.mode(RequestMode::Cors);
+pub fn fetch(url: String) -> Result<String, String> {
+  // Create a new XMLHttpRequest to fetch the file
+  let xhr = XmlHttpRequest::new().expect("failed to create XmlRttpRequest");
+  xhr.open_with_async(&"GET", &url, false).expect("failed to open");
 
-  let request = Request::new_with_str_and_init(&url, &opts).expect("failed to init request");
+  // Send the request synchronously
+  xhr.send().expect("failed to send request");
 
-  let window = web_sys::window().unwrap();
-  let resp_value = JsFuture::from(window.fetch_with_request(&request)).await.expect("request failed");
+  // Check if the request was successful (status code 200)
+  if xhr.status().expect("failed to get status") != 200 {
+    return Err("HTTP request failed".to_string());
+  }
 
-  // `resp_value` is a `Response` object.
-  assert!(resp_value.is_instance_of::<Response>());
-  let resp: Response = resp_value.dyn_into().unwrap();
+  // Convert the response to a Vec<u8>
+  let response = xhr.response_text().unwrap().unwrap();
 
-  // Convert this other `Promise` into a rust `Future`.
-  let text = JsFuture::from(resp.text().expect("failed to get text")).await.expect("failed to get text");
-
-  // Send the JSON response back to JS.
-  Ok(text.as_string().expect("failed to convert text"))
+  Ok(response)
 }
 
 
