@@ -26,7 +26,6 @@ macro_rules! parse_args {
         $state.cursor_y += lines.len() + 2;
         return consts::NEWLINE.to_string() + &lines.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
       }
-
     }
   }
 }

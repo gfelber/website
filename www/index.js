@@ -34,7 +34,7 @@ const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
-if (!window.chrome || !navigator.userAgentData.mobile) {
+if (!(!!window.chrome && !navigator.userAgentData.mobile)) {
   term.loadAddon(new WebglAddon());
 }
 
@@ -43,21 +43,18 @@ function init() {
   domterm.innerText = "";
   term.open(domterm);
   fitAddon.fit();
-  console.log(document.fonts.check('14px Source Code Pro Variable'));
   term.write(wasm.init(term.rows, term.cols, window.location.pathname));
 }
 
 var loaded = document.readyState === "complete" || document.readyState === "interactive"
 document.addEventListener('DOMContentLoaded', () => {
   loaded = true;
-  console.log("loaded")
   if (font) init();
 })
 
 var font = false
 document.fonts.ready.then(() => {
   font = true
-  console.log("font")
   if (loaded) init();
 });
 

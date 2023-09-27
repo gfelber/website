@@ -1,5 +1,6 @@
 use include_dir::Dir;
 use crate::consts;
+use crate::filesystem;
 
 pub struct TermState {
   pub path: &'static Dir<'static>,
@@ -7,17 +8,19 @@ pub struct TermState {
   pub cursor_y: usize,
   pub height: usize,
   pub width: usize,
+  pub entry: filesystem::Entry
 }
 
 impl TermState {
   pub fn new() -> Self {
-    return Self {
+    Self {
       path: &consts::ROOT,
       cursor_x: 0,
       cursor_y: 0,
       height: 0,
       width: 0,
-    };
+      entry: filesystem::Entry::new()
+    }
   }
   pub fn clear(&mut self) -> String {
     self.cursor_y = 0;

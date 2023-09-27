@@ -8,6 +8,7 @@ mod app;
 mod shell;
 mod less;
 mod termstate;
+mod filesystem;
 
 use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
@@ -33,7 +34,6 @@ lazy_static! {
 
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) -> String {
-  info!("init");
   let mut term = TERM.lock().unwrap();
   #[cfg(debug_assertions)]
   {
@@ -42,6 +42,7 @@ pub fn init(height: usize, width: usize, location: &str) -> String {
       utils::set_panic_hook();
     }
   }
+  info!("init");
   return term.init(height, width, location);
 }
 
@@ -59,11 +60,11 @@ pub struct Term {
 
 impl Term {
   pub fn new() -> Self {
-    return Self {
+    Self {
       app: Box::new(app::EmptyApp::new()),
       state: Box::new(termstate::TermState::new()),
       init: false,
-    };
+    }
   }
 
   pub fn init(&mut self, height: usize, width: usize, location: &str) -> String {

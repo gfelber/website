@@ -6,6 +6,7 @@ edition = "2021"
 license = "GPL-3"
 description = "terminal backend in rust wasm"
 repository = "https://github.com/gfelber/website"
+build = "build.rs"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -29,6 +30,12 @@ console_log = { version = "1", features = ["color"], optional = true}
 cfg-if = "1.0.0"
 log = { version = "0.4", features = [] }
 clap = { version = "4.4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+ron = "0.8"
+
+[build-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+ron = "0.8"
 
 [dependencies.web-sys]
 version = "0.3.64"

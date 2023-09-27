@@ -16,6 +16,7 @@ module.exports = {
         { from: "node_modules/xterm/css/xterm.css", to: "xterm.css" },
         { from: "node_modules/@fontsource-variable/source-code-pro/index.css", to: "font.css" },
         { from: "node_modules/@fontsource-variable/source-code-pro/files", to: "files" },
+        { from: "../root", to: "root" },
         { from: "index.html", to: "index.html" },
         { from: "index.html", to: "404.html" },
         { from: "img", to: "img" },
