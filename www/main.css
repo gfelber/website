@@ -3,6 +3,7 @@ body{
   padding: 0;
   font-family: "Source Code Pro Variable";
   font-size: 14px;
+  color: #EAFFE5;
 }
 #terminal{
   position: absolute;

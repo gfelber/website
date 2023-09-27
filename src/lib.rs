@@ -16,6 +16,7 @@ use std::ops::DerefMut;
 use std::sync::Mutex;
 use log::info;
 use cfg_if::cfg_if;
+use wasm_bindgen_futures::spawn_local;
 
 cfg_if! {
     if #[cfg(feature = "console_log")] {
@@ -43,6 +44,11 @@ pub fn init(height: usize, width: usize, location: &str) -> String {
     }
   }
   info!("init");
+  info!("{:?}", term.state.entry.get_file("test_dir/test_dir2/test"));
+  info!("{:?}", term.state.entry.get_file("asdf"));
+  spawn_local(async move{
+    info!("{:?}", filesystem::Entry::new().get_file("test_dir/test_dir2/test").expect("a").load().await.expect("b"));
+  });
   return term.init(height, width, location);
 }
 
