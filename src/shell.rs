@@ -76,6 +76,7 @@ pub struct Shell {
   ansi_buffer: Vec<char>,
   history_index: usize,
   ansi: bool,
+  insert: bool,
 }
 
 impl App for Shell {
@@ -83,8 +84,13 @@ impl App for Shell {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
+      let mut hex = "".to_string();
+      for byt in ansistr.as_bytes(){
+        hex += &format!("{:02X}", byt);
+      }
+      info!("{}", hex);
       let out: String = self.ansi(state, &ansistr);
-      if out != "" || self.ansi_buffer.len() == 3 {
+      if out != "" || self.ansi_buffer.len() == 4 {
         self.ansi = false;
         self.ansi_buffer.clear();
       }
@@ -138,7 +144,17 @@ impl App for Shell {
           input = ' ';
         }
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
-          self.input_buffer[state.cursor_x - PREFIX.len()] = input;
+          if self.insert{
+            self.input_buffer[state.cursor_x - PREFIX.len()] = input;
+          } else {
+            self.input_buffer.insert(state.cursor_x - PREFIX.len(), input);
+            let new_x = state.cursor_x + 1;
+            let input_str: String = self.input_buffer.iter().collect();
+            let left = consts::LEFT.repeat(self.input_buffer.len() - (new_x - PREFIX.len()));
+            let out = self.clearline(state) + PREFIX + &input_str + &left;
+            state.cursor_x = new_x;
+            return (None, out);
+          }
         } else if state.cursor_x < state.width - 1 {
           state.cursor_x += 1;
           self.input_buffer.push(input);
@@ -164,6 +180,7 @@ impl Shell {
       ansi_buffer: vec![],
       history_index: history.len(),
       ansi: false,
+      insert: false,
     }
   }
 
@@ -437,6 +454,11 @@ impl Shell {
         let repeat = self.input_buffer.len() - state.cursor_x - PREFIX.len();
         state.cursor_x = self.input_buffer.len() + PREFIX.len();
         return consts::RIGHT.repeat(repeat);
+      }
+      consts::INSERT => {
+        self.insert = !self.insert;
+        self.ansi_buffer.clear();
+        self.ansi = false;
       }
       _ => {}
     }
