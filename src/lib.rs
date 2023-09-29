@@ -14,8 +14,6 @@ use wasm_bindgen::prelude::*;
 use lazy_static::lazy_static;
 use std::ops::DerefMut;
 use std::sync::Mutex;
-use std::thread;
-use std::time::Duration;
 use log::info;
 use cfg_if::cfg_if;
 
@@ -45,9 +43,9 @@ pub fn init(height: usize, width: usize, location: &str) -> String {
     }
   }
   info!("init");
-  info!("{:?}", term.state.entry.get_file("test_dir/test_dir2/test"));
-  info!("{:?}", term.state.entry.get_file("asdf"));
-  info!("{:?}", filesystem::Entry::new().get_file("test_dir/test_dir2/test").expect("a").load().expect("b"));
+  info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test"));
+  info!("{:?}", filesystem::ROOT.get_file("asdf"));
+  info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test").unwrap().load().unwrap());
   info!("done");
   return term.init(height, width, location);
 }
@@ -77,23 +75,18 @@ impl Term {
     self.init = true;
     let mut location_str = location.to_string();
     location_str.remove(0);
-    let path = consts::ROOT.get_entry(location_str.clone());
+    let path = filesystem::ROOT.get_file(&location_str.clone());
     self.state.width = width;
     self.state.height = height;
-    if !path.is_none() {
-      if path.unwrap().as_dir().is_none() {
-        let resolved = utils::resolve_path(&(location_str.clone() + "/.."));
-        info!("works");
-        info!("{}", resolved);
-        if !resolved.is_empty() {
-          self.state.path = consts::ROOT.get_dir(resolved.clone()).unwrap();
-        }
+    if path.is_ok() {
+      if path.clone().unwrap().is_dir {
+        self.state.path = path.unwrap();
+      } else {
+        self.state.path = &mut filesystem::ROOT.get_file(&(location_str.clone() + "/..")).unwrap();
         let mut less_app = less::Less::new();
-        let out = less_app.less(&mut self.state, &location_str).expect("error loading file with less");
+        let out = less_app.less(&mut self.state, &location_str).unwrap();
         self.app = Box::new(less_app);
         return out;
-      } else {
-        self.state.path = path.unwrap().as_dir().unwrap();
       }
     }
     self.app = Box::new(shell::Shell::new());

@@ -1,15 +1,14 @@
 use ansi_term::{Colour, Style};
-use include_dir::File;
 use crate::app::App;
 use log::info;
-use crate::{consts, utils};
+use crate::{consts, utils, filesystem};
 use crate::consts::NEWLINE;
 use crate::shell::Shell;
 use crate::termstate::TermState;
 
 pub struct Less {
   ansi_buffer: Vec<char>,
-  file: &'static str,
+  lines: Vec<&'static str>,
   line: usize,
   ansi: bool,
 }
@@ -30,7 +29,7 @@ impl App for Less {
       }
       // quit
       'q' => {
-        let _ = utils::change_url(&("/".to_string() + state.path.path().to_str().unwrap()));
+        let _ = utils::change_url(&("/".to_string() + state.path.url));
         (Some(Box::new(Shell::new())), Shell::clear(state))
       }
       // top
@@ -52,21 +51,20 @@ impl Less {
   pub fn new() -> Self {
     Self {
       ansi_buffer: vec![],
-      file: "",
+      lines: vec![],
       line: 0,
       ansi: false,
     }
   }
   fn less_from(&mut self, state: &mut TermState, mut n: usize) -> String {
-    let less_lines: Vec<&str> = consts::ROOT.get_file(self.file).unwrap().contents_utf8().unwrap().lines().collect();
-    let lines_len = less_lines.len();
+    let lines_len = self.lines.len();
     let bound: usize = if lines_len > state.height { lines_len - state.height } else { 0 };
     info!("{}", format!("{} {}", n, bound));
     n = if n < bound { n } else { bound };
     info!("{}", format!("{}", n));
     self.line = n;
     let m: usize = if n + state.height - 1 < lines_len { n + state.height - 1 } else { lines_len };
-    let head: Vec<&str> = less_lines[n..m].to_vec();
+    let head: Vec<&str> = self.lines[n..m].to_vec();
     let padding = state.height - head.len();
     let suffix = if n == bound {
       Style::new().on(Colour::RGB(234, 255, 229))
@@ -79,20 +77,17 @@ impl Less {
   }
 
   pub fn less(&mut self, state: &mut TermState, path_str: &str) -> Result<String, String> {
-    let path = state.path.path().join(path_str).display().to_string();
+    let path = state.path.join(path_str);
     info!("{}", path);
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
-    let change: Option<&File>;
-    if resolved == "" {
-      change = None;
-    } else {
-      change = consts::ROOT.get_file(resolved.clone());
-    }
-    if !change.is_none() {
-      let _ = utils::change_url(&("/".to_string() + change.unwrap().path().to_str().unwrap()));
-      info!("{}", change.unwrap().path().to_str().unwrap());
-      self.file = Box::leak(Box::new(resolved));
+    let change = filesystem::ROOT.get_file(resolved.clone());
+    if change.is_ok() {
+      let file = change.unwrap();
+      let _ = utils::change_url(&("/".to_string() + file.url));
+      info!("{}", file.url);
+      let content = Box::leak(Box::new(file.load().unwrap()));
+      self.lines = content.lines().collect();
       return Ok(self.less_from(state, 0));
     }
 

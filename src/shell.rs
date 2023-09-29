@@ -2,18 +2,17 @@ use std::sync::Mutex;
 
 use ansi_term::Colour;
 use clap::Parser;
-use include_dir::{Dir, DirEntry, File};
 use lazy_static::lazy_static;
-use log::info;
+use log::{info, warn};
 
-use crate::{consts, utils};
+use crate::{consts, utils, filesystem};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
 
 const PREFIX: &str = "$ ";
-const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot\t4069\tJan 1 1970 ";
-const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot\t1337\tJan 1 1970 ";
+const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot";
+const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot";
 
 macro_rules! parse_args {
   ($state:expr, $e:expr) => {
@@ -124,7 +123,10 @@ impl App for Shell {
         }
         (None, input.to_string())
       }
-      _ => (None, "".to_string())
+      _ => {
+        warn!("character not supported: {:2x}", input as u64);
+        (None, "".to_string())
+      }
     };
   }
 }
@@ -161,16 +163,16 @@ impl Shell {
   fn ls(&mut self, state: &mut TermState, cmdline: &str) -> String {
     let lsargs: Ls = parse_args!(state, Ls::try_parse_from(cmdline.split(" ")));
     let path_str = lsargs.file.unwrap_or(".".to_string());
-    let path = state.path.path().join(path_str.clone()).display().to_string();
+    let path = state.path.join(path_str.clone());
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
-    let change: Option<&DirEntry> = consts::ROOT.get_entry(resolved.clone());
-    if resolved.is_empty() || change.is_some() {
-      if !lsargs.directory && (resolved.is_empty() || change.unwrap().as_dir().is_some()) {
-        let dir: &Dir = if resolved.is_empty() {
-          &consts::ROOT
+    let change = filesystem::ROOT.get_file(&resolved);
+    if resolved.is_empty() || change.is_ok() {
+      if !lsargs.directory && (resolved.is_empty() || change.clone().unwrap().is_dir) {
+        let dir = if resolved.is_empty() {
+          &filesystem::ROOT
         } else {
-          &change.unwrap().as_dir().unwrap()
+          change.unwrap()
         };
         let prefix = if lsargs.recursive {
           path_str.clone() + ":" + consts::NEWLINE
@@ -180,26 +182,26 @@ impl Shell {
         let mut totalsize = 0;
         let mut entries: Vec<String> = Vec::new();
         let mut recursive_dirs: Vec<String> = Vec::new();
-        for entry in dir.entries() {
-          let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
-          if entry.as_file().is_some() {
+        for (name, entry) in &dir.entries {
+          if entry.is_dir {
+            if lsargs.recursive {
+              recursive_dirs.push(name.to_string());
+            }
+            let formatted_name = Colour::Blue.bold().paint(*name).to_string();
             if lsargs.list {
               state.cursor_y += 1;
-              totalsize += 1337;
-              entries.push(FILE_PREFIX.to_string() + &name + consts::NEWLINE);
+              totalsize += entry.size;
+              entries.push(format!("{}\t{}\t{} {}{}", DIR_PREFIX, entry.size, entry.modified, formatted_name, consts::NEWLINE));
             } else {
-              entries.push(name);
+              entries.push(formatted_name);
             }
           } else {
-            if lsargs.recursive {
-              recursive_dirs.push(name.clone());
-            }
             if lsargs.list {
               state.cursor_y += 1;
-              totalsize += 4096;
-              entries.push(DIR_PREFIX.to_string() + &Colour::Blue.bold().paint(&name).to_string() + consts::NEWLINE);
+              totalsize += entry.size;
+              entries.push(format!("{}\t{}\t{} {}{}", FILE_PREFIX, entry.size, entry.modified, name, consts::NEWLINE));
             } else {
-              entries.push(Colour::Blue.bold().paint(&name).to_string());
+              entries.push(name.to_string());
             }
           }
         }
@@ -229,13 +231,13 @@ impl Shell {
       } else {
         state.cursor_x = PREFIX.len();
         state.cursor_y += 2;
-        let mut filename = if change.is_some() {
-          change.unwrap().path().file_name().unwrap().to_string_lossy().to_string()
+        let mut filename = if change.is_ok() {
+          change.clone().unwrap().filename.to_string()
         } else {
           ".".to_string()
         };
         let mut prefix = FILE_PREFIX;
-        if lsargs.directory && (resolved.is_empty() || change.unwrap().as_dir().is_some()) {
+        if lsargs.directory && (resolved.is_empty() || change.clone().unwrap().is_dir) {
           filename = Colour::Blue.bold().paint(filename).to_string();
           prefix = DIR_PREFIX;
         }
@@ -257,21 +259,14 @@ impl Shell {
       if path_str.starts_with('/') {
         path = path_str[1..].to_string();
       } else {
-        path = state.path.path().join(path_str).display().to_string();
+        path = state.path.join(path_str);
       }
     }
     info!("{}", path);
-    let resolved = utils::resolve_path(&path);
-    info!("{}", resolved);
-    let change: Option<&Dir>;
-    if resolved.is_empty() {
-      change = Some(&consts::ROOT);
-    } else {
-      change = consts::ROOT.get_dir(resolved);
-    }
-    if change.is_some() {
-      state.path = &change.unwrap();
-      let _ = utils::change_url(&("/".to_string() + state.path.path().to_str().unwrap()));
+    let change = filesystem::ROOT.get_file(path);
+    if change.is_ok() {
+      state.path = change.unwrap();
+      let _ = utils::change_url(&("/".to_string() + state.path.url));
       state.cursor_y += 1;
       state.cursor_x = PREFIX.len();
       return consts::NEWLINE.to_string() + PREFIX;
@@ -282,19 +277,15 @@ impl Shell {
   }
 
   fn cat(&mut self, state: &mut TermState, path_str: &str) -> String {
-    let path = state.path.path().join(path_str).display().to_string();
+    let path = state.path.join(path_str);
     info!("{}", path);
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
-    let change: Option<&File>;
-    if resolved == "" {
-      change = None;
-    } else {
-      change = consts::ROOT.get_file(resolved);
-    }
-    if !change.is_none() {
-      info!("{}", change.unwrap().path().to_str().unwrap());
-      let lines: Vec<&str> = change.unwrap().contents_utf8().unwrap().lines().collect();
+    let change = filesystem::ROOT.get_file(&resolved);
+    if change.is_ok() {
+      info!("{}", change.clone().unwrap().url);
+      let content = change.unwrap().load().unwrap();
+      let lines: Vec<&str> = content.lines().collect();
       state.cursor_y += lines.len() + 2;
       state.cursor_x = PREFIX.len();
       return consts::NEWLINE.to_string() + &lines.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
@@ -305,7 +296,7 @@ impl Shell {
   }
 
   fn pwd(&mut self, state: &mut TermState, _args: &str) -> String {
-    return consts::NEWLINE.to_string() + "/" + &state.path.path().display().to_string() + consts::NEWLINE + PREFIX;
+    return consts::NEWLINE.to_string() + "/" + &state.path.url + consts::NEWLINE + PREFIX;
   }
 
   fn help(&mut self, _state: &mut TermState, _args: &str) -> String {

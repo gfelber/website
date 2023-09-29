@@ -1,7 +1,3 @@
-use include_dir::{Dir, include_dir};
-
-pub const ROOT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/root");
-
 // ANSI
 pub const UP: &str = "\x1b\x5b\x41";
 pub const DOWN: &str = "\x1b\x5b\x42";

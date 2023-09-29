@@ -1,8 +1,13 @@
 use std::collections::HashMap;
+use lazy_static::lazy_static;
 use log::info;
 use serde::Deserialize;
 use crate::utils;
 include!(concat!(env!("OUT_DIR"), "/root.rs"));
+
+lazy_static! {
+    pub static ref ROOT: Entry = Entry::new();
+}
 
 #[derive(Deserialize, Debug)]
 pub struct Entry {
@@ -17,10 +22,10 @@ pub struct Entry {
 const ROOT_URL: &str = "/root/";
 impl Entry{
   pub fn new() -> Entry{
-    return ron::from_str(ROOT).unwrap();
+    return ron::from_str(ROOT_SERIALIZED).unwrap();
   }
 
-  fn get_file_rec(&self, files: &Vec<&str>) -> Result<&Entry, String> {
+  fn get_file_rec(&self, files: &Vec<&str>) -> Result<& Entry, String> {
     let entry = self.entries.get(files[0]).ok_or("File not found")?;
     let files = &files[1..files.len()].to_vec();
     if files.is_empty() {
@@ -29,9 +34,18 @@ impl Entry{
     return entry.get_file_rec(files);
   }
 
-  pub fn get_file(&self, path: &str) -> Result<&Entry, String>{
-    let files = utils::resolve_path_files(path);
+  pub fn get_file(&self, path_str: impl Into<String>) -> Result<& Entry, String>{
+    let path = path_str.into();
+    let files = utils::resolve_path_files(&path);
+    if files.is_empty(){
+      return Ok(self);
+    }
     return self.get_file_rec(&files)
+  }
+
+  pub fn join(&self, path_str: impl Into<String>) -> String{
+    let path = path_str.into();
+    return self.url.to_string() + "/" + &path
   }
 
   pub fn load(&self) -> Result<String, String> {

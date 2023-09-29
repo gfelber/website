@@ -1,25 +1,22 @@
-use include_dir::Dir;
 use crate::consts;
 use crate::filesystem;
 
 pub struct TermState {
-  pub path: &'static Dir<'static>,
+  pub path: &'static filesystem::Entry,
   pub cursor_x: usize,
   pub cursor_y: usize,
   pub height: usize,
-  pub width: usize,
-  pub entry: filesystem::Entry
+  pub width: usize
 }
 
 impl TermState {
   pub fn new() -> Self {
     Self {
-      path: &consts::ROOT,
+      path: &filesystem::ROOT,
       cursor_x: 0,
       cursor_y: 0,
       height: 0,
-      width: 0,
-      entry: filesystem::Entry::new()
+      width: 0
     }
   }
   pub fn clear(&mut self) -> String {

@@ -25,7 +25,7 @@ fn main() {
     &root,
     ron::ser::PrettyConfig::default()
   ).unwrap();
-  let out = format!("pub const ROOT: &str = \"{}\";\n", root_serialized.replace("\"", "\\\""));
+  let out = format!("pub const ROOT_SERIALIZED: &str = \"{}\";\n", root_serialized.replace("\"", "\\\""));
   fs::write(
     &dest_path,
     out
