@@ -32,9 +32,13 @@ fn main() {
 fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'a mut Entry, Box<dyn Error>> {
   if dir.is_dir() {
     for entry in fs::read_dir(dir)? {
-      let dir_entry = entry?;
-      let entry_metadata = dir_entry.metadata().unwrap();
+      let mut dir_entry = entry?;
       let path = dir_entry.path();
+      let entry_metadata = if dir_entry.file_type().unwrap().is_symlink() {
+        dir_entry.path().metadata().unwrap()
+      } else {
+        path.metadata().unwrap()
+      };
       let filename = dir_entry.file_name().to_string_lossy().to_string();
       let filename_box = Box::new(filename.clone());
       let fileurl = url.to_string() + &filename;
