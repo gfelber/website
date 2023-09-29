@@ -65,7 +65,11 @@ impl Entry {
 
   pub fn join(&self, path_str: impl Into<String>) -> String {
     let path = path_str.into();
-    return self.url.to_string() + "/" + &path;
+    return if path.starts_with("/") {
+      path
+    } else {
+      self.url.to_string() + "/" + &path
+    }
   }
 
   pub fn load(&self) -> Result<String, String> {

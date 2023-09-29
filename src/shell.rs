@@ -30,8 +30,8 @@ macro_rules! parse_args {
 }
 
 #[derive(Parser)]
-#[command(about = "List directory contents", disable_help_flag = true)]
-struct Ls {
+#[command(about = "list directory contents", disable_help_flag = true)]
+struct LsArgs {
   #[arg(hide_short_help = true, hide_long_help = true)]
   file: Option<String>,
   #[arg(short = 'R', long, action, help = "recursive")]
@@ -44,6 +44,27 @@ struct Ls {
   help: Option<bool>,
   #[arg(short, action, help = "long format")]
   list: bool,
+}
+
+#[derive(Parser)]
+#[command(about = "change directory")]
+struct CdArgs {
+  #[arg(help = "directory to change into")]
+  dir: Option<String>
+}
+
+#[derive(Parser)]
+#[command(about = "print file to stdout")]
+struct CatArgs {
+  #[arg(help = "file to print")]
+  file: String
+}
+
+#[derive(Parser)]
+#[command(about = "view file inside screen")]
+struct LessArgs {
+  #[arg(help = "file to view")]
+  file: String
 }
 
 lazy_static! {
@@ -164,8 +185,13 @@ impl Shell {
     return consts::NEWLINE.to_string() + args + consts::NEWLINE + PREFIX;
   }
 
+  fn whoami(&mut self, state: &mut TermState, _args: &str) -> String {
+    state.cursor_y += 2;
+    return consts::NEWLINE.to_string() + "user" + consts::NEWLINE + PREFIX;
+  }
+
   fn ls(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let lsargs: Ls = parse_args!(state, Ls::try_parse_from(cmdline.split(" ")));
+    let lsargs: LsArgs = parse_args!(state, LsArgs::try_parse_from(cmdline.split(" ")));
     let path_str = lsargs.file.unwrap_or(".".to_string());
     let path = state.path.join(path_str.clone());
     let resolved = utils::resolve_path(&path);
@@ -253,17 +279,13 @@ impl Shell {
     return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
-  fn cd(&mut self, state: &mut TermState, path_str: &str) -> String {
-    let mut path = "".to_string();
-    if !(path_str.is_empty() || path_str == "/") {
-      if path_str.starts_with('/') {
-        path = path_str[1..].to_string();
-      } else {
-        path = state.path.join(path_str);
-      }
-    }
-    info!("{}", path);
-    let change = filesystem::ROOT.get_file(path);
+  fn cd(&mut self, state: &mut TermState, cmdline: &str) -> String {
+    let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")));
+    let path_str = args.dir.unwrap_or("/".to_string());
+    let path = state.path.join(path_str.clone());
+    let resolved = utils::resolve_path(&path);
+    info!("{}", resolved);
+    let change = filesystem::ROOT.get_file(resolved);
     if change.is_ok() {
       state.path = change.unwrap();
       let _ = utils::change_url(&("/".to_string() + state.path.url));
@@ -276,8 +298,10 @@ impl Shell {
     return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
-  fn cat(&mut self, state: &mut TermState, path_str: &str) -> String {
-    let path = state.path.join(path_str);
+  fn cat(&mut self, state: &mut TermState, cmdline: &str) -> String {
+    let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")));
+    let path_str = args.file;
+    let path = state.path.join(path_str.clone());
     info!("{}", path);
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
@@ -303,19 +327,30 @@ impl Shell {
     let help = "\
             clear\t\tclear terminal\n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
-            ls\t[PATH]\tlist files in directory\n\r\
-            cd\tPATH\tchange directory\n\r\
-            cat\tPATH\tstdout file\n\r\
-            less\tPATH\tview file\n\r\
+            whoami\t\tprint current user\n\r\
+            ls\t[PATH]\tlist directory contents\n\r\
+            cd\t[DIR]\tchange directory\n\r\
+            cat\tFILE\tprint file to stdout\n\r\
+            less\tFILE\tview file in screen\n\r\
             echo\tMSG\techo message\n\r\
             help\t\tprint this message\
             ";
     return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
   }
 
-  fn less(&mut self, state: &mut TermState, args: &str) -> (Option<Box<dyn App>>, String) {
+  fn parse_less(&mut self, state: &mut TermState, cmdline: &str) -> String {
+    let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")));
+    return args.file;
+  }
+
+  fn less(&mut self, state: &mut TermState, cmdline: &str) -> (Option<Box<dyn App>>, String) {
+    let old_y = state.cursor_y;
+    let out = self.parse_less(state, cmdline);
+    if old_y != state.cursor_y {
+      return (None, out);
+    }
     let mut less = Less::new();
-    return match less.less(state, args) {
+    return match less.less(state, &out) {
       Ok(result) => (Some(Box::new(less)), result),
       Err(error) => {
         state.cursor_x = PREFIX.len();
@@ -334,13 +369,14 @@ impl Shell {
     let cmd = cmd_args.next().unwrap();
     return match cmd {
       "clear" => (None, Shell::clear(state)),
-      "pwd" => (None, self.pwd(state, cmd_args.remainder().unwrap_or(""))),
-      "cd" => (None, self.cd(state, cmd_args.remainder().unwrap_or(""))),
+      "pwd" => (None, self.pwd(state, "")),
+      "whoami" => (None, self.whoami(state, "")),
+      "cd" => (None, self.cd(state, cmdline)),
       "ls" => (None, self.ls(state, cmdline)),
-      "cat" => (None, self.cat(state, cmd_args.remainder().unwrap_or(""))),
-      "less" => self.less(state, cmd_args.remainder().unwrap_or("")),
-      "help" => (None, self.help(state, cmd_args.remainder().unwrap_or(""))),
-      "echo" => (None, self.echo(state, cmd_args.remainder().unwrap_or(""))),
+      "cat" => (None, self.cat(state, cmdline)),
+      "less" => self.less(state, cmdline),
+      "help" => (None, self.help(state, "")),
+      "echo" => (None, self.echo(state, "")),
       _ => {
         state.cursor_y += 1;
         state.cursor_x = PREFIX.len();

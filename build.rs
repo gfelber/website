@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
+
 use serde::Serialize;
 
 fn main() {
@@ -12,7 +13,7 @@ fn main() {
   let cargo_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
   let root_path = Path::new(&cargo_dir).join("root");
 
-  let mut root: Entry = Entry{
+  let mut root: Entry = Entry {
     filename: Box::new("".to_string()),
     url: Box::new("".to_string()),
     size: root_path.metadata().unwrap().len(),
@@ -25,14 +26,14 @@ fn main() {
   let out = format!("pub const ROOT_SERIALIZED: &str = \"{}\";\n", root_serialized.replace("\"", "\\\""));
   fs::write(
     &dest_path,
-    out
+    out,
   ).unwrap();
 }
 
 fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'a mut Entry, Box<dyn Error>> {
   if dir.is_dir() {
     for entry in fs::read_dir(dir)? {
-      let mut dir_entry = entry?;
+      let dir_entry = entry?;
       let path = dir_entry.path();
       let entry_metadata = if dir_entry.file_type().unwrap().is_symlink() {
         dir_entry.path().metadata().unwrap()
@@ -42,7 +43,7 @@ fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'
       let filename = dir_entry.file_name().to_string_lossy().to_string();
       let filename_box = Box::new(filename.clone());
       let fileurl = url.to_string() + &filename;
-      let mut entry:Entry = Entry{
+      let mut entry: Entry = Entry {
         filename: filename_box.clone(),
         url: Box::new(fileurl.clone()),
         size: entry_metadata.len(),
@@ -53,7 +54,7 @@ fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'
 
       if path.is_dir() {
         // It's a subdirectory, so visit it recursively
-        visit_dirs( & mut entry, path.as_path(), &(fileurl + "/"))?;
+        visit_dirs(&mut entry, path.as_path(), &(fileurl + "/"))?;
       }
 
       root.entries.insert(filename_box, entry);
@@ -70,5 +71,5 @@ struct Entry {
   size: u64,
   modified: u64,
   is_dir: bool,
-  entries: HashMap<Box<String>, Entry> // only applicable to Dirs
+  entries: HashMap<Box<String>, Entry>, // only applicable to Dirs
 }
