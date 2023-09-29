@@ -69,7 +69,7 @@ impl Entry {
       path
     } else {
       self.url.to_string() + "/" + &path
-    }
+    };
   }
 
   pub fn load(&self) -> Result<String, String> {

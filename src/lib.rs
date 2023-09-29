@@ -35,7 +35,7 @@ lazy_static! {
 }
 
 #[wasm_bindgen]
-pub fn init(height: usize, width: usize, location: &str) -> String {
+pub fn init(height: usize, width: usize, location: &str) {
   let mut term = TERM.lock().unwrap();
   #[cfg(debug_assertions)]
   {
@@ -48,18 +48,17 @@ pub fn init(height: usize, width: usize, location: &str) -> String {
   info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test"));
   info!("{:?}", filesystem::ROOT.get_file("asdf"));
   info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test").unwrap().load().unwrap());
-  spawn_local(async{
+  spawn_local(async {
     info!("{:?}", utils::afetch("/root/test_dir/test_dir2/test".to_string()).await.unwrap());
   });
-  utils::term_write("asdf\n\r");
   info!("done");
-  return term.init(height, width, location);
+  term.init(height, width, location);
 }
 
 #[wasm_bindgen]
-pub fn readline(input: &str) -> String {
+pub fn readline(input: &str) {
   let mut term = TERM.lock().unwrap();
-  return term.readline(input);
+  term.readline(input);
 }
 
 pub struct Term {
@@ -77,7 +76,7 @@ impl Term {
     }
   }
 
-  pub fn init(&mut self, height: usize, width: usize, location: &str) -> String {
+  pub fn init(&mut self, height: usize, width: usize, location: &str) {
     self.init = true;
     let mut location_str = location.to_string();
     location_str.remove(0);
@@ -90,33 +89,29 @@ impl Term {
       } else {
         self.state.path = &mut filesystem::ROOT.get_file(&(location_str.clone() + "/..")).unwrap();
         let mut less_app = less::Less::new();
-        let out = less_app.less(&mut self.state, &location_str).unwrap();
+        less_app.less(&mut self.state, &location_str).unwrap();
         self.app = Box::new(less_app);
-        return out;
       }
     }
     self.app = Box::new(shell::Shell::new());
-    return shell::Shell::clear(&mut self.state);
+    shell::Shell::clear(&mut self.state);
   }
 
-  pub fn readline(&mut self, input: &str) -> String {
-    let mut vec = Vec::<String>::new();
+  pub fn readline(&mut self, input: &str) {
     for c in input.chars() {
-      vec.push(self.readchar(c));
+      self.readchar(c);
     }
-    return vec.join("");
   }
 
-  fn readchar(&mut self, input: char) -> String {
+  fn readchar(&mut self, input: char) {
     let x = self.state.cursor_x;
     let y = self.state.cursor_y;
     info!("{:02x}", input as u32);
-    let (app, out) = self.app.readchar(self.state.deref_mut(), input);
+    let app = self.app.readchar(self.state.deref_mut(), input);
     if app.is_some() {
       self.app = app.unwrap();
     }
     info!("({}|{})->({}|{})", x, y, self.state.cursor_x, self.state.cursor_y);
-    return out;
   }
 }
 

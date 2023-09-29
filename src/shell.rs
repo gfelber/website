@@ -5,7 +5,7 @@ use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
 use log::{info, warn};
 
-use crate::{consts, filesystem, utils};
+use crate::{clear, consts, filesystem, utils, write, writeln};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
@@ -14,8 +14,35 @@ const PREFIX: &str = "$ ";
 const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot";
 const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot";
 
+macro_rules! new {
+  ($state:expr) => {{
+    $state.cursor_x = 0;
+    writeln!($state, "");
+  }};
+}
+
+macro_rules! prefix {
+  ($state:expr) => {{
+    $state.cursor_x += PREFIX.len();
+    write!("{}", PREFIX);
+  }};
+}
+macro_rules! init {
+  ($state:expr) => {{
+    new!($state);
+    prefix!($state);
+  }};
+}
+macro_rules! write_solo {
+  ($state:expr, $out:expr) => {{
+    new!($state);
+    write!("{}", $out);
+    init!($state);
+  }};
+}
+
 macro_rules! parse_args {
-  ($state:expr, $e:expr) => {
+  ($state:expr, $e:expr, $ret:expr) => {
     match $e{
       Ok(args) => {args}
       Err(error) => {
@@ -23,7 +50,8 @@ macro_rules! parse_args {
         let lines: Vec<&str> = error_str.lines().collect();
         $state.cursor_x = PREFIX.len();
         $state.cursor_y += lines.len() + 2;
-        return consts::NEWLINE.to_string() + &lines.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
+        write_solo!($state, lines.join(consts::NEWLINE));
+        return $ret;
       }
     }
   }
@@ -50,21 +78,21 @@ struct LsArgs {
 #[command(about = "change directory")]
 struct CdArgs {
   #[arg(help = "directory to change into")]
-  dir: Option<String>
+  dir: Option<String>,
 }
 
 #[derive(Parser)]
 #[command(about = "print file to stdout")]
 struct CatArgs {
   #[arg(help = "file to print")]
-  file: String
+  file: String,
 }
 
 #[derive(Parser)]
 #[command(about = "view file inside screen")]
 struct LessArgs {
   #[arg(help = "file to view")]
-  file: String
+  file: String,
 }
 
 lazy_static! {
@@ -81,21 +109,17 @@ pub struct Shell {
 }
 
 impl App for Shell {
-  fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
+  fn readchar(&mut self, state: &mut TermState, input: char) -> Option<Box<dyn App>> {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
       let mut hex = "".to_string();
-      for byt in ansistr.as_bytes(){
+      for byt in ansistr.as_bytes() {
         hex += &format!("{:02X}", byt);
       }
       info!("{}", hex);
-      let out: String = self.ansi(state, &ansistr);
-      if out != "" || self.ansi_buffer.len() == 4 {
-        self.ansi = false;
-        self.ansi_buffer.clear();
-      }
-      return (None, out);
+      self.ansi(state, &ansistr);
+      return None;
     }
     return match input {
       '\r' | '\n' => {
@@ -107,68 +131,69 @@ impl App for Shell {
       }
       // clear line
       '\x15' => {
-        let out = self.clearline(state);
+        self.clearline(state);
         self.input_buffer.clear();
-        state.cursor_x = PREFIX.len();
-        (None, out + PREFIX)
+        None
       }
       // clear
       '\x0c' => {
         self.input_buffer.clear();
-        (None, Shell::clear(state))
+        Shell::clear(state);
+        None
       }
       // return key
       '\x7f' => {
         if self.input_buffer.is_empty() {
-          return (None, "".to_string());
+          return None;
         }
         let cursor_x = state.cursor_x - (PREFIX.len() + 1);
         info!("{}/{}", cursor_x, self.input_buffer.len());
         let left = consts::LEFT.repeat(self.input_buffer.len() - cursor_x);
-        let mut out = self.clearline(state) + PREFIX;
+        self.clearline(state);
         self.input_buffer.remove(cursor_x);
         let inputstr: String = self.input_buffer.iter().collect();
-        out = out + inputstr.as_str() + " " + &left;
+        write!("{} {}", inputstr, left);
         state.cursor_x = cursor_x + PREFIX.len();
-        (None, out)
+        None
       }
       // ansi
       '\x1b' => {
         self.ansi = true;
         self.ansi_buffer.push(input);
-        (None, "".to_string())
+        None
       }
       '\t' => {
         self.autocomplete(state);
-        (None, "".to_string())
+        None
       }
       // only printable characters
       c if c >= ' ' => {
-        // TAB change to whitespace
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
-          if self.insert{
+          if self.insert {
             self.input_buffer[state.cursor_x - PREFIX.len()] = input;
           } else {
             self.input_buffer.insert(state.cursor_x - PREFIX.len(), input);
             let new_x = state.cursor_x + 1;
             let input_str: String = self.input_buffer.iter().collect();
             let left = consts::LEFT.repeat(self.input_buffer.len() - (new_x - PREFIX.len()));
-            let out = self.clearline(state) + PREFIX + &input_str + &left;
+            self.clearline(state);
+            write!("{}{}", input_str, left);
             state.cursor_x = new_x;
-            return (None, out);
+            return None;
           }
         } else if state.cursor_x < state.width - 1 {
           state.cursor_x += 1;
           self.input_buffer.push(input);
         } else {
           info!("reached EOL");
-          return (None, "".to_string());
+          return None;
         }
-        (None, input.to_string())
+        write!("{}", input);
+        None
       }
       _ => {
         warn!("character not supported: {:02x}", input as u32);
-        (None, "".to_string())
+        None
       }
     };
   }
@@ -187,47 +212,46 @@ impl Shell {
     }
   }
 
-  pub fn clear(state: &mut TermState) -> String {
-    let out = state.clear() + "\r" + PREFIX;
-    state.cursor_x = PREFIX.len();
-    return out;
-  }
-
-  fn clearline(&mut self, state: &mut TermState) -> String {
-    let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
-    let out: String = consts::RETURN.repeat(self.input_buffer.len() + PREFIX.len());
-    state.cursor_x = 0;
-    return right + &out;
-  }
-
-  fn autocomplete(&mut self, state: &mut TermState) -> String {
-    "".to_string()
-  }
-
-  fn echo(&mut self, state: &mut TermState, args: &str) -> String {
-    state.cursor_y += 2;
-    return consts::NEWLINE.to_string() + args + consts::NEWLINE + PREFIX;
-  }
-
-  fn whoami(&mut self, state: &mut TermState, _args: &str) -> String {
-    utils::term_write("test");
-    state.cursor_y += 2;
-    return consts::NEWLINE.to_string() + "user" + consts::NEWLINE + PREFIX;
-  }
-
-  fn history(&mut self, state: &mut TermState, _args: &str) -> String {
-    let history = CMD_HISTORY.lock().unwrap();
-    let mut out: Vec<String> = Vec::new();
-    for (index, cmd) in history.iter().enumerate() {
-      state.cursor_y += 1;
-      out.push(format!("{:-4} {}", index, cmd));
+  pub fn clear(state: &mut TermState) {
+    if !(state.cursor_x == PREFIX.len() && state.cursor_y == 0) {
+      clear!(state);
+      prefix!(state);
     }
-    state.cursor_y += 2;
-    return consts::NEWLINE.to_string() + &out.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
   }
 
-  fn ls(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let lsargs: LsArgs = parse_args!(state, LsArgs::try_parse_from(cmdline.split(" ")));
+  fn clearline(&mut self, state: &mut TermState) {
+    let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
+    let clear: String = consts::RETURN.repeat(self.input_buffer.len());
+    state.cursor_x = PREFIX.len();
+    write!("{}{}", right, clear);
+  }
+
+  fn autocomplete(&mut self, state: &mut TermState) {}
+
+  fn echo(&mut self, state: &mut TermState, args: &str) {
+    write_solo!(state, args);
+  }
+
+  fn whoami(&mut self, state: &mut TermState, _args: &str) {
+    write_solo!(state, "user");
+  }
+
+  fn history(&mut self, state: &mut TermState, _args: &str) {
+    let history = CMD_HISTORY.lock().unwrap();
+    new!(state);
+    for (index, cmd) in history.iter().enumerate() {
+      writeln!(state, "{:-4} {}", index, cmd);
+    }
+    prefix!(state);
+  }
+
+  fn ls(&mut self, state: &mut TermState, cmdline: &str) {
+    write!("{}", self.ls_rec(state, cmdline));
+    state.cursor_x = 0;
+    prefix!(state);
+  }
+  fn ls_rec(&mut self, state: &mut TermState, cmdline: &str) -> String {
+    let lsargs = parse_args!(state, LsArgs::try_parse_from(cmdline.split(" ")), "".to_string());
     let path_str = lsargs.file.unwrap_or(".".to_string());
     let path = state.path.join(path_str.clone());
     let resolved = utils::resolve_path(&path);
@@ -274,7 +298,6 @@ impl Shell {
         if !lsargs.list {
           entries.push(consts::NEWLINE.to_string());
         }
-        state.cursor_x = PREFIX.len();
         state.cursor_y += 2;
         if lsargs.recursive {
           for entry in recursive_dirs {
@@ -282,20 +305,18 @@ impl Shell {
             if lsargs.list { options += "l" }
             if lsargs.human { options += "h" }
             let file = &format!("{}/{}", path_str, entry);
-            let mut out = self.ls(state, &format!("ls {} {}", options, file));
-            out.truncate(out.len() - PREFIX.len());
+            let out = self.ls_rec(state, &format!("ls {} {}", options, file));
             entries.push(out);
           }
         }
         if lsargs.list {
           let totalsize_str = if lsargs.human { utils::human_size(totalsize) } else { format!("{}", totalsize) };
-          return format!("{}{}total {}{}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""), PREFIX);
+          return format!("{}{}total {}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""));
         } else {
-          return consts::NEWLINE.to_string() + &prefix + &entries.join("\t") + PREFIX;
+          return consts::NEWLINE.to_string() + &prefix + &entries.join("\t");
         }
       } else {
         let file = change.unwrap_or(state.path);
-        state.cursor_x = PREFIX.len();
         state.cursor_y += 2;
         let mut filename = file.filename.to_string();
         let mut prefix = format!("{}\t{}\t{} ", FILE_PREFIX, file.size, file.get_date_str());
@@ -304,38 +325,34 @@ impl Shell {
           prefix = format!("{}\t{}\t{} ", DIR_PREFIX, file.size, file.get_date_str());
         }
         if lsargs.list {
-          return consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE + PREFIX;
+          return consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE;
         } else {
-          return consts::NEWLINE.to_string() + &filename + consts::NEWLINE + PREFIX;
+          return consts::NEWLINE.to_string() + &filename + consts::NEWLINE;
         }
       }
     }
     state.cursor_y += 2;
-    state.cursor_x = PREFIX.len();
-    return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
+    return format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string());
   }
 
-  fn cd(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")));
+  fn cd(&mut self, state: &mut TermState, cmdline: &str) {
+    let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")), ());
     let path_str = args.dir.unwrap_or("/".to_string());
     let path = state.path.join(path_str.clone());
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(resolved);
-    if change.is_ok() {
+    if change.is_ok() && change.clone().unwrap().is_dir {
       state.path = change.unwrap();
       let _ = utils::change_url(&("/".to_string() + state.path.url));
-      state.cursor_y += 1;
-      state.cursor_x = PREFIX.len();
-      return consts::NEWLINE.to_string() + PREFIX;
+      init!(state);
+    } else {
+      write_solo!(state, format!("{}: No such directory", path_str));
     }
-    state.cursor_y += 2;
-    state.cursor_x = PREFIX.len();
-    return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
-  fn cat(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")));
+  fn cat(&mut self, state: &mut TermState, cmdline: &str) {
+    let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")), ());
     let path_str = args.file;
     let path = state.path.join(path_str.clone());
     info!("{}", path);
@@ -348,18 +365,21 @@ impl Shell {
       let lines: Vec<&str> = content.lines().collect();
       state.cursor_y += lines.len() + 2;
       state.cursor_x = PREFIX.len();
-      return consts::NEWLINE.to_string() + &lines.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
+      new!(state);
+      for line in lines {
+        writeln!(state, "{}", line);
+      }
+      prefix!(state);
+    } else {
+      write_solo!(state, format!("{}: No such file or directory", path_str));
     }
-    state.cursor_y += 2;
-    state.cursor_x = PREFIX.len();
-    return format!("{}{}: No such file or directory{}{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string(), PREFIX);
   }
 
-  fn pwd(&mut self, state: &mut TermState, _args: &str) -> String {
-    return consts::NEWLINE.to_string() + "/" + &state.path.url + consts::NEWLINE + PREFIX;
+  fn pwd(&mut self, state: &mut TermState, _args: &str) {
+    write_solo!(state, "/".to_string() + &state.path.url);
   }
 
-  fn help(&mut self, _state: &mut TermState, _args: &str) -> String {
+  fn help(&mut self, state: &mut TermState, _args: &str) {
     let help = "\
             clear\t\tclear terminal\n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
@@ -372,33 +392,23 @@ impl Shell {
             history\t\tprint cmd history\
             help\t\tprint this message\
             ";
-    return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
+    write_solo!(state, help);
   }
 
-  fn parse_less(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")));
-    return args.file;
-  }
-
-  fn less(&mut self, state: &mut TermState, cmdline: &str) -> (Option<Box<dyn App>>, String) {
-    let old_y = state.cursor_y;
-    let out = self.parse_less(state, cmdline);
-    if old_y != state.cursor_y {
-      return (None, out);
-    }
+  fn less(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+    let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
     let mut less = Less::new();
-    return match less.less(state, &out) {
-      Ok(result) => (Some(Box::new(less)), result),
+    return match less.less(state, &args.file) {
+      Ok(()) => Some(Box::new(less)),
       Err(error) => {
-        state.cursor_x = PREFIX.len();
-        state.cursor_y += 2;
-        (None, error + PREFIX)
+        write_solo!(state, error);
+        None
       }
     };
   }
 
 
-  fn command(&mut self, state: &mut TermState, cmdline: &str) -> (Option<Box<dyn App>>, String) {
+  fn command(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
     let mut history = CMD_HISTORY.lock().unwrap();
     if history.is_empty() || history[history.len() - 1] != cmdline {
       history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
@@ -407,85 +417,96 @@ impl Shell {
     drop(history);
     let mut cmd_args = cmdline.split(" ");
     let cmd = cmd_args.next().unwrap();
-    return match cmd {
-      "clear" => (None, Shell::clear(state)),
-      "pwd" => (None, self.pwd(state, "")),
-      "whoami" => (None, self.whoami(state, "")),
-      "cd" => (None, self.cd(state, cmdline)),
-      "ls" => (None, self.ls(state, cmdline)),
-      "cat" => (None, self.cat(state, cmdline)),
-      "less" => self.less(state, cmdline),
-      "echo" => (None, self.echo(state, cmd_args.remainder().unwrap_or(""))),
-      "help" => (None, self.help(state, "")),
-      "history" => (None, self.history(state, "")),
+    match cmd {
+      "clear" => Shell::clear(state),
+      "pwd" => self.pwd(state, ""),
+      "whoami" => self.whoami(state, ""),
+      "cd" => self.cd(state, cmdline),
+      "ls" => self.ls(state, cmdline),
+      "cat" => self.cat(state, cmdline),
+      "less" => {
+        return self.less(state, cmdline);
+      }
+      "echo" => self.echo(state, cmd_args.remainder().unwrap_or("")),
+      "help" => self.help(state, ""),
+      "history" => self.history(state, ""),
       _ => {
         state.cursor_y += 1;
         state.cursor_x = PREFIX.len();
-        (None, format!("{}command not found: {}{}{}", consts::NEWLINE, cmd, consts::NEWLINE, PREFIX))
+        write_solo!(state, format!("command not found: {}", cmd));
       }
     };
+    return None;
   }
 
 
-  fn ansi(&mut self, state: &mut TermState, ansistr: &str) -> String {
+  fn ansi_clear(&mut self) {
+    self.ansi_buffer.clear();
+    self.ansi = false;
+  }
+  fn ansi(&mut self, state: &mut TermState, ansistr: &str) {
     let history = CMD_HISTORY.lock().unwrap();
     match ansistr {
       consts::UP => {
+        self.ansi_clear();
         if self.history_index > 0 {
           self.history_index -= 1;
           let entry = history[self.history_index];
-          let out = self.clearline(state) + PREFIX + entry;
+          self.clearline(state);
           self.input_buffer.clear();
           self.input_buffer.extend(entry.chars());
           state.cursor_x = entry.len() + PREFIX.len();
-          return out;
+          write!("{}", entry.to_string());
         }
-        return "".to_string();
       }
       consts::DOWN => {
+        self.ansi_clear();
         if history.len() != 0 && self.history_index < history.len() - 1 {
           self.history_index += 1;
           let entry = history[self.history_index];
-          let out = self.clearline(state) + PREFIX + entry;
+          self.clearline(state);
           self.input_buffer.clear();
           self.input_buffer.extend(entry.chars());
           state.cursor_x = entry.len() + PREFIX.len();
-          return out;
+          write!("{}", entry);
+        } else if self.history_index < history.len() {
+          self.history_index += 1
         }
-        let out = self.clearline(state) + PREFIX;
+        self.clearline(state);
         self.input_buffer.clear();
         state.cursor_x = PREFIX.len();
-        return out;
       }
       consts::RIGHT => {
+        self.ansi_clear();
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
           state.cursor_x += 1;
-          return consts::RIGHT.to_string();
+          write!("{}", consts::RIGHT);
         }
       }
       consts::LEFT => {
+        self.ansi_clear();
         if state.cursor_x > PREFIX.len() {
           state.cursor_x -= 1;
-          return consts::LEFT.to_string();
+          write!("{}", consts::LEFT);
         }
       }
       consts::PAGE_START => {
+        self.ansi_clear();
         let repeat = state.cursor_x - PREFIX.len();
         state.cursor_x = PREFIX.len();
-        return consts::LEFT.repeat(repeat);
+        write!("{}", consts::LEFT.repeat(repeat));
       }
       consts::PAGE_END => {
+        self.ansi_clear();
         let repeat = self.input_buffer.len() - state.cursor_x - PREFIX.len();
         state.cursor_x = self.input_buffer.len() + PREFIX.len();
-        return consts::RIGHT.repeat(repeat);
+        write!("{}", consts::RIGHT.repeat(repeat));
       }
       consts::INSERT => {
+        self.ansi_clear();
         self.insert = !self.insert;
-        self.ansi_buffer.clear();
-        self.ansi = false;
       }
       _ => {}
     }
-    return "".to_string();
   }
 }

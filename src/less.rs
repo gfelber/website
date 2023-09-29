@@ -1,9 +1,8 @@
 use ansi_term::{Colour, Style};
 use log::info;
 
-use crate::{consts, filesystem, utils};
+use crate::{consts, filesystem, utils, write};
 use crate::app::App;
-use crate::consts::NEWLINE;
 use crate::shell::Shell;
 use crate::termstate::TermState;
 
@@ -15,34 +14,38 @@ pub struct Less {
 }
 
 impl App for Less {
-  fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
+  fn readchar(&mut self, state: &mut TermState, input: char) -> Option<Box<dyn App>> {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
-      return (None, self.ansi(state, &ansistr));
+      self.ansi(state, &ansistr);
+      return None;
     }
     return match input {
       // ansi
       '\x1b' => {
         self.ansi = true;
         self.ansi_buffer.push(input);
-        (None, "".to_string())
+        None
       }
       // quit
       'q' => {
         let _ = utils::change_url(&("/".to_string() + state.path.url));
-        (Some(Box::new(Shell::new())), Shell::clear(state))
+        Shell::clear(state);
+        Some(Box::new(Shell::new()))
       }
       // top
       'g' => {
-        (None, self.less_from(state, 0))
+        self.less_from(state, 0);
+        None
       }
       // bottom
       'G' => {
-        (None, self.less_from(state, usize::MAX))
+        self.less_from(state, usize::MAX);
+        None
       }
       _ => {
-        (None, "".to_string())
+        None
       }
     };
   }
@@ -57,7 +60,7 @@ impl Less {
       ansi: false,
     }
   }
-  fn less_from(&mut self, state: &mut TermState, mut n: usize) -> String {
+  fn less_from(&mut self, state: &mut TermState, mut n: usize) {
     let lines_len = self.lines.len();
     let bound: usize = if lines_len > state.height { lines_len - state.height } else { 0 };
     info!("{}", format!("{} {}", n, bound));
@@ -74,65 +77,62 @@ impl Less {
     } else {
       ":".to_string()
     };
-    return consts::NEWLINE.repeat(padding) + &head.join(NEWLINE) + consts::NEWLINE + &suffix;
+    write!("{}{}{}{}", consts::NEWLINE.repeat(padding), head.join(consts::NEWLINE), consts::NEWLINE, suffix);
   }
 
-  pub fn less(&mut self, state: &mut TermState, path_str: &str) -> Result<String, String> {
+  pub fn less(&mut self, state: &mut TermState, path_str: &str) -> Result<(), String> {
     let path = state.path.join(path_str);
     info!("{}", path);
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(resolved.clone());
-    if change.is_ok() {
+    if !resolved.is_empty() && change.is_ok() {
       let file = change.unwrap();
       let _ = utils::change_url(&("/".to_string() + file.url));
       info!("{}", file.url);
       let content = Box::leak(Box::new(file.load().unwrap()));
       self.lines = content.lines().collect();
-      return Ok(self.less_from(state, 0));
+      self.less_from(state, 0);
+      return Ok(());
     }
 
-    return Err(format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string()));
+    return Err(format!("{}: No such file or directory", path_str));
   }
 
-  fn ansi(&mut self, state: &mut TermState, ansistr: &str) -> String {
-    return match ansistr {
+  fn ansi_clear(&mut self) {
+    self.ansi_buffer.clear();
+    self.ansi = false;
+  }
+  fn ansi(&mut self, state: &mut TermState, ansistr: &str) {
+    match ansistr {
       consts::UP => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, if self.line > 0 { self.line - 1 } else { 0 })
       }
       consts::DOWN => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, self.line + 1)
       }
       consts::PAGE_UP => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, if self.line > state.height { self.line - state.height } else { 0 })
       }
       consts::PAGE_DOWN => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, self.line + state.height)
       }
       consts::PAGE_START => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, 0)
       }
       consts::PAGE_END => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
+        self.ansi_clear();
         self.less_from(state, usize::MAX)
       }
       consts::RIGHT | consts::LEFT => {
-        self.ansi = false;
-        self.ansi_buffer.clear();
-        "".to_string()
+        self.ansi_clear();
       }
-      _ => "".to_string()
+      _ => {}
     };
   }
 }

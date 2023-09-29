@@ -1,26 +1,48 @@
-use std::ptr::eq;
 use wasm_bindgen::JsValue;
-use web_sys::{window, XmlHttpRequest};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::{window, XmlHttpRequest};
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
-#[wasm_bindgen(module="/src/js/dist/package.js")]
-#[no_mangle]
+use crate::consts;
+
+#[wasm_bindgen(module = "/src/js/dist/package.js")]
 extern "C" {
-  fn write(out: String);
+  fn term_write(out: String);
 
   fn create_term(options: JsValue) -> JsValue;
 }
 
-pub fn term_write(out_str: impl Into<String>) {
+#[macro_export]
+macro_rules! write {
+    ($($arg:tt)*) => {{
+        let formatted = format!($($arg)*);
+        utils::write(formatted);
+    }};
+}
+
+#[macro_export]
+macro_rules! writeln {
+    ($state:expr, $($arg:tt)*) => {{
+        $state.cursor_y += 1;
+        let formatted = format!($($arg)*);
+        utils::writeln(formatted);
+    }};
+}
+
+pub fn write(out_str: impl Into<String>) {
   let out = out_str.into();
-  write(out);
+  term_write(out);
+}
+
+pub fn writeln(out_str: impl Into<String>) {
+  let out = out_str.into();
+  term_write(out + consts::NEWLINE);
 }
 
 #[wasm_bindgen]
-pub unsafe fn term(options: JsValue) -> JsValue{
-  return create_term(options);
+pub fn term(options: JsValue) -> JsValue {
+  create_term(options)
 }
 
 pub fn set_panic_hook() {

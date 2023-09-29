@@ -4,7 +4,6 @@ import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { WebglAddon } from 'xterm-addon-webgl';
 import { CanvasAddon } from 'xterm-addon-canvas';
-
 var term = wasm.term({
   theme: {
     background: '#181818',
@@ -43,7 +42,7 @@ function init() {
   domterm.innerText = "";
   term.open(domterm);
   fitAddon.fit();
-  term.write(wasm.init(term.rows, term.cols, window.location.pathname));
+  wasm.init(term.rows, term.cols, window.location.pathname);
 }
 
 var loaded = document.readyState === "complete" || document.readyState === "interactive"
@@ -65,5 +64,5 @@ addEventListener("resize", () => {
 
 
 term.onData(function(data) {
-  term.write(wasm.readline(data));
+  wasm.readline(data);
 });
