@@ -6,6 +6,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "index.js",
+    webassemblyModuleFilename: 'wasm-backend.wasm',
     publicPath: "/",
   },
   mode: "development",
