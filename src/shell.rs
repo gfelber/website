@@ -1,11 +1,11 @@
 use std::sync::Mutex;
 
 use ansi_term::Colour;
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
 use log::{info, warn};
 
-use crate::{consts, utils, filesystem};
+use crate::{consts, filesystem, utils};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
@@ -30,7 +30,7 @@ macro_rules! parse_args {
 }
 
 #[derive(Parser)]
-#[command(about = "List directory contents")]
+#[command(about = "List directory contents", disable_help_flag = true)]
 struct Ls {
   #[arg(hide_short_help = true, hide_long_help = true)]
   file: Option<String>,
@@ -38,6 +38,10 @@ struct Ls {
   recursive: bool,
   #[arg(short, long, action, help = "list directory names, not contents")]
   directory: bool,
+  #[arg(short, action, help = "Human readable sizes (1K 243M 2G)")]
+  human: bool,
+  #[arg(long, global = true, action = ArgAction::HelpShort, hide_short_help = true, hide_long_help = true)]
+  help: Option<bool>,
   #[arg(short, action, help = "long format")]
   list: bool,
 }
@@ -191,7 +195,7 @@ impl Shell {
             if lsargs.list {
               state.cursor_y += 1;
               totalsize += entry.size;
-              entries.push(format!("{}\t{}\t{} {}{}", DIR_PREFIX, entry.size, entry.modified, formatted_name, consts::NEWLINE));
+              entries.push(format!("{}\t{}\t{} {}{}", DIR_PREFIX, entry.get_size(lsargs.human), entry.get_date_str(), formatted_name, consts::NEWLINE));
             } else {
               entries.push(formatted_name);
             }
@@ -199,7 +203,7 @@ impl Shell {
             if lsargs.list {
               state.cursor_y += 1;
               totalsize += entry.size;
-              entries.push(format!("{}\t{}\t{} {}{}", FILE_PREFIX, entry.size, entry.modified, name, consts::NEWLINE));
+              entries.push(format!("{}\t{}\t{} {}{}", FILE_PREFIX, entry.get_size(lsargs.human), entry.get_date_str(), name, consts::NEWLINE));
             } else {
               entries.push(name.to_string());
             }
@@ -212,11 +216,9 @@ impl Shell {
         state.cursor_y += 2;
         if lsargs.recursive {
           for entry in recursive_dirs {
-            let options = if lsargs.list {
-              "-lR"
-            } else {
-              "-R"
-            };
+            let mut options = "-R".to_string();
+            if lsargs.list { options += "l" }
+            if lsargs.human { options += "h" }
             let file = &format!("{}/{}", path_str, entry);
             let mut out = self.ls(state, &format!("ls {} {}", options, file));
             out.truncate(out.len() - PREFIX.len());
@@ -224,25 +226,23 @@ impl Shell {
           }
         }
         if lsargs.list {
-          return format!("{}{}total {}{}{}{}", consts::NEWLINE, prefix, totalsize, consts::NEWLINE, &entries.join(""), PREFIX);
+          let totalsize_str = if lsargs.human { utils::human_size(totalsize) } else { format!("{}", totalsize) };
+          return format!("{}{}total {}{}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""), PREFIX);
         } else {
           return consts::NEWLINE.to_string() + &prefix + &entries.join("\t") + PREFIX;
         }
       } else {
+        let file = change.unwrap_or(state.path);
         state.cursor_x = PREFIX.len();
         state.cursor_y += 2;
-        let mut filename = if change.is_ok() {
-          change.clone().unwrap().filename.to_string()
-        } else {
-          ".".to_string()
-        };
-        let mut prefix = FILE_PREFIX;
-        if lsargs.directory && (resolved.is_empty() || change.clone().unwrap().is_dir) {
+        let mut filename = file.filename.to_string();
+        let mut prefix = format!("{}\t{}\t{} ", FILE_PREFIX, file.size, file.get_date_str());
+        if lsargs.directory && (resolved.is_empty() || file.is_dir) {
           filename = Colour::Blue.bold().paint(filename).to_string();
-          prefix = DIR_PREFIX;
+          prefix = format!("{}\t{}\t{} ", DIR_PREFIX, file.size, file.get_date_str());
         }
         if lsargs.list {
-          return consts::NEWLINE.to_string() + prefix + &filename + consts::NEWLINE + PREFIX;
+          return consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE + PREFIX;
         } else {
           return consts::NEWLINE.to_string() + &filename + consts::NEWLINE + PREFIX;
         }
@@ -343,7 +343,8 @@ impl Shell {
       "echo" => (None, self.echo(state, cmd_args.remainder().unwrap_or(""))),
       _ => {
         state.cursor_y += 1;
-        (None, consts::NEWLINE.to_string() + PREFIX)
+        state.cursor_x = PREFIX.len();
+        (None, format!("{}command not found: {}{}{}", consts::NEWLINE, cmd, consts::NEWLINE, PREFIX))
       }
     };
   }

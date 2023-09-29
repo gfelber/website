@@ -21,8 +21,8 @@ pub fn change_url(new_url: &str) -> Result<(), JsValue> {
   history.push_state_with_url(&JsValue::NULL, "", Some(new_url))
     .map_err(|err| err.into())
 }
-pub fn resolve_path_files(path: &str) -> Vec<&str> {
 
+pub fn resolve_path_files(path: &str) -> Vec<&str> {
   let components: Vec<&str> = path.split('/').collect();
   let mut resolved_components: Vec<&str> = Vec::new();
 
@@ -54,6 +54,7 @@ pub fn resolve_path(path: &str) -> String {
   }
   out
 }
+
 pub fn fetch(url: String) -> Result<String, String> {
   // Create a new XMLHttpRequest to fetch the file
   let xhr = XmlHttpRequest::new().expect("failed to create XmlRttpRequest");
@@ -71,6 +72,20 @@ pub fn fetch(url: String) -> Result<String, String> {
   let response = xhr.response_text().unwrap().unwrap();
 
   Ok(response)
+}
+
+pub fn human_size(size: u64) -> String {
+  const KB: u64 = 1024;
+  const MB: u64 = KB * 1024;
+  const GB: u64 = MB * 1024;
+
+  if size < KB {
+    format!("{}", size)
+  } else if size < MB {
+    format!("{:.1}K", size as f64 / KB as f64)
+  } else {
+    format!("{:.1}G", size as f64 / GB as f64)
+  }
 }
 
 

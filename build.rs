@@ -21,10 +21,7 @@ fn main() {
     entries: HashMap::new(),
   };
   visit_dirs(&mut root, root_path.as_path(), "").expect("couldn't read dir");
-  let root_serialized: String = ron::ser::to_string_pretty(
-    &root,
-    ron::ser::PrettyConfig::default()
-  ).unwrap();
+  let root_serialized: String = ron::ser::to_string(&root).unwrap();
   let out = format!("pub const ROOT_SERIALIZED: &str = \"{}\";\n", root_serialized.replace("\"", "\\\""));
   fs::write(
     &dest_path,

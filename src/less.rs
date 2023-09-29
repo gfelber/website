@@ -1,7 +1,8 @@
 use ansi_term::{Colour, Style};
-use crate::app::App;
 use log::info;
-use crate::{consts, utils, filesystem};
+
+use crate::{consts, filesystem, utils};
+use crate::app::App;
 use crate::consts::NEWLINE;
 use crate::shell::Shell;
 use crate::termstate::TermState;

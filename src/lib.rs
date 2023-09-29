@@ -2,6 +2,14 @@
 #![feature(negative_impls)]
 
 
+use std::ops::DerefMut;
+use std::sync::Mutex;
+
+use cfg_if::cfg_if;
+use lazy_static::lazy_static;
+use log::info;
+use wasm_bindgen::prelude::*;
+
 mod utils;
 mod consts;
 mod app;
@@ -9,13 +17,6 @@ mod shell;
 mod less;
 mod termstate;
 mod filesystem;
-
-use wasm_bindgen::prelude::*;
-use lazy_static::lazy_static;
-use std::ops::DerefMut;
-use std::sync::Mutex;
-use log::info;
-use cfg_if::cfg_if;
 
 cfg_if! {
     if #[cfg(feature = "console_log")] {

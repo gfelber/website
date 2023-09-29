@@ -14,6 +14,6 @@ impl App for EmptyApp {
 
 impl EmptyApp {
   pub fn new() -> Self {
-    Self{}
+    Self {}
   }
 }

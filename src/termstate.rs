@@ -6,7 +6,7 @@ pub struct TermState {
   pub cursor_x: usize,
   pub cursor_y: usize,
   pub height: usize,
-  pub width: usize
+  pub width: usize,
 }
 
 impl TermState {
@@ -16,7 +16,7 @@ impl TermState {
       cursor_x: 0,
       cursor_y: 0,
       height: 0,
-      width: 0
+      width: 0,
     }
   }
   pub fn clear(&mut self) -> String {
