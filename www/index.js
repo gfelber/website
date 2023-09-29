@@ -5,7 +5,7 @@ import { WebLinksAddon } from 'xterm-addon-web-links';
 import { WebglAddon } from 'xterm-addon-webgl';
 import { CanvasAddon } from 'xterm-addon-canvas';
 
-var term = new Terminal({
+var term = wasm.term({
   theme: {
     background: '#181818',
     foreground: '#EAFFE5',

@@ -9,6 +9,7 @@ use cfg_if::cfg_if;
 use lazy_static::lazy_static;
 use log::info;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 
 mod utils;
 mod consts;
@@ -47,6 +48,10 @@ pub fn init(height: usize, width: usize, location: &str) -> String {
   info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test"));
   info!("{:?}", filesystem::ROOT.get_file("asdf"));
   info!("{:?}", filesystem::ROOT.get_file("test_dir/test_dir2/test").unwrap().load().unwrap());
+  spawn_local(async{
+    info!("{:?}", utils::afetch("/root/test_dir/test_dir2/test".to_string()).await.unwrap());
+  });
+  utils::term_write("asdf\n\r");
   info!("done");
   return term.init(height, width, location);
 }

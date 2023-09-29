@@ -75,12 +75,13 @@ pub struct Shell {
   input_buffer: Vec<char>,
   ansi_buffer: Vec<char>,
   history_index: usize,
+  autocomplete_index: usize,
   ansi: bool,
   insert: bool,
 }
 
 impl App for Shell {
-  fn readchar(&mut self, state: &mut TermState, mut input: char) -> (Option<Box<dyn App>>, String) {
+  fn readchar(&mut self, state: &mut TermState, input: char) -> (Option<Box<dyn App>>, String) {
     if self.ansi {
       self.ansi_buffer.push(input);
       let ansistr: String = self.ansi_buffer.iter().collect();
@@ -137,12 +138,13 @@ impl App for Shell {
         self.ansi_buffer.push(input);
         (None, "".to_string())
       }
+      '\t' => {
+        self.autocomplete(state);
+        (None, "".to_string())
+      }
       // only printable characters
       c if c >= ' ' => {
         // TAB change to whitespace
-        if input == '\x09' {
-          input = ' ';
-        }
         if state.cursor_x < self.input_buffer.len() + PREFIX.len() {
           if self.insert{
             self.input_buffer[state.cursor_x - PREFIX.len()] = input;
@@ -165,7 +167,7 @@ impl App for Shell {
         (None, input.to_string())
       }
       _ => {
-        warn!("character not supported: {:2x}", input as u64);
+        warn!("character not supported: {:02x}", input as u32);
         (None, "".to_string())
       }
     };
@@ -179,6 +181,7 @@ impl Shell {
       input_buffer: vec![],
       ansi_buffer: vec![],
       history_index: history.len(),
+      autocomplete_index: 0,
       ansi: false,
       insert: false,
     }
@@ -197,14 +200,30 @@ impl Shell {
     return right + &out;
   }
 
+  fn autocomplete(&mut self, state: &mut TermState) -> String {
+    "".to_string()
+  }
+
   fn echo(&mut self, state: &mut TermState, args: &str) -> String {
     state.cursor_y += 2;
     return consts::NEWLINE.to_string() + args + consts::NEWLINE + PREFIX;
   }
 
   fn whoami(&mut self, state: &mut TermState, _args: &str) -> String {
+    utils::term_write("test");
     state.cursor_y += 2;
     return consts::NEWLINE.to_string() + "user" + consts::NEWLINE + PREFIX;
+  }
+
+  fn history(&mut self, state: &mut TermState, _args: &str) -> String {
+    let history = CMD_HISTORY.lock().unwrap();
+    let mut out: Vec<String> = Vec::new();
+    for (index, cmd) in history.iter().enumerate() {
+      state.cursor_y += 1;
+      out.push(format!("{:-4} {}", index, cmd));
+    }
+    state.cursor_y += 2;
+    return consts::NEWLINE.to_string() + &out.join(consts::NEWLINE) + consts::NEWLINE + PREFIX;
   }
 
   fn ls(&mut self, state: &mut TermState, cmdline: &str) -> String {
@@ -350,6 +369,7 @@ impl Shell {
             cat\tFILE\tprint file to stdout\n\r\
             less\tFILE\tview file in screen\n\r\
             echo\tMSG\techo message\n\r\
+            history\t\tprint cmd history\
             help\t\tprint this message\
             ";
     return consts::NEWLINE.to_string() + help + consts::NEWLINE + PREFIX;
@@ -380,8 +400,11 @@ impl Shell {
 
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> (Option<Box<dyn App>>, String) {
     let mut history = CMD_HISTORY.lock().unwrap();
-    history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+    if history.is_empty() || history[history.len() - 1] != cmdline {
+      history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+    }
     self.history_index = history.len();
+    drop(history);
     let mut cmd_args = cmdline.split(" ");
     let cmd = cmd_args.next().unwrap();
     return match cmd {
@@ -392,8 +415,9 @@ impl Shell {
       "ls" => (None, self.ls(state, cmdline)),
       "cat" => (None, self.cat(state, cmdline)),
       "less" => self.less(state, cmdline),
+      "echo" => (None, self.echo(state, cmd_args.remainder().unwrap_or(""))),
       "help" => (None, self.help(state, "")),
-      "echo" => (None, self.echo(state, "")),
+      "history" => (None, self.history(state, "")),
       _ => {
         state.cursor_y += 1;
         state.cursor_x = PREFIX.len();
