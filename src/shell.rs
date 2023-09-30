@@ -5,7 +5,7 @@ use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
 use log::{info, warn};
 
-use crate::{clear, consts, filesystem, utils, write, writeln};
+use crate::{clear, consts, filesystem, utils, write, writeln, write_buf, writeln_buf};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
@@ -17,7 +17,7 @@ const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot";
 macro_rules! new {
   ($state:expr) => {{
     $state.cursor_x = 0;
-    writeln!($state, "");
+    writeln_buf!($state, "");
   }};
 }
 
@@ -36,7 +36,7 @@ macro_rules! init {
 macro_rules! write_solo {
   ($state:expr, $out:expr) => {{
     new!($state);
-    write!("{}", $out);
+    write_buf!("{}", $out);
     init!($state);
   }};
 }
@@ -213,17 +213,15 @@ impl Shell {
   }
 
   pub fn clear(state: &mut TermState) {
-    if !(state.cursor_x == PREFIX.len() && state.cursor_y == 0) {
-      clear!(state);
-      prefix!(state);
-    }
+    clear!(state);
+    prefix!(state);
   }
 
   fn clearline(&mut self, state: &mut TermState) {
     let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
     let clear: String = consts::RETURN.repeat(self.input_buffer.len());
     state.cursor_x = PREFIX.len();
-    write!("{}{}", right, clear);
+    write_buf!("{}{}", right, clear);
   }
 
   fn autocomplete(&mut self, state: &mut TermState) {}
@@ -246,7 +244,7 @@ impl Shell {
   }
 
   fn ls(&mut self, state: &mut TermState, cmdline: &str) {
-    write!("{}", self.ls_rec(state, cmdline));
+    write_buf!("{}", self.ls_rec(state, cmdline));
     state.cursor_x = 0;
     prefix!(state);
   }
@@ -309,11 +307,11 @@ impl Shell {
             entries.push(out);
           }
         }
-        if lsargs.list {
+        return if lsargs.list {
           let totalsize_str = if lsargs.human { utils::human_size(totalsize) } else { format!("{}", totalsize) };
-          return format!("{}{}total {}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""));
+          format!("{}{}total {}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""))
         } else {
-          return consts::NEWLINE.to_string() + &prefix + &entries.join("\t");
+          consts::NEWLINE.to_string() + &prefix + &entries.join("\t")
         }
       } else {
         let file = change.unwrap_or(state.path);
@@ -324,10 +322,10 @@ impl Shell {
           filename = Colour::Blue.bold().paint(filename).to_string();
           prefix = format!("{}\t{}\t{} ", DIR_PREFIX, file.size, file.get_date_str());
         }
-        if lsargs.list {
-          return consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE;
+        return if lsargs.list {
+          consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE
         } else {
-          return consts::NEWLINE.to_string() + &filename + consts::NEWLINE;
+          consts::NEWLINE.to_string() + &filename + consts::NEWLINE
         }
       }
     }
@@ -342,8 +340,13 @@ impl Shell {
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(resolved);
-    if change.is_ok() && change.clone().unwrap().is_dir {
-      state.path = change.unwrap();
+    if change.is_ok()  {
+      let dir = change.unwrap();
+      if !dir.is_dir{
+        write_solo!(state, format!("can't cd to {}: Not a directory", path_str));
+        return;
+      }
+      state.path = dir;
       let _ = utils::change_url(&("/".to_string() + state.path.url));
       init!(state);
     } else {
@@ -360,8 +363,13 @@ impl Shell {
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(&resolved);
     if change.is_ok() {
-      info!("{}", change.clone().unwrap().url);
-      let content = change.unwrap().load().unwrap();
+      let file = change.unwrap();
+      if file.is_dir {
+        write_solo!(state, format!("read error: {} Is a directory", path_str));
+        return;
+      }
+      info!("{}", file.url);
+      let content = file.load().unwrap();
       let lines: Vec<&str> = content.lines().collect();
       state.cursor_y += lines.len() + 2;
       state.cursor_x = PREFIX.len();
@@ -371,7 +379,7 @@ impl Shell {
       }
       prefix!(state);
     } else {
-      write_solo!(state, format!("{}: No such file or directory", path_str));
+      write_solo!(state, format!("{}: No such file", path_str));
     }
   }
 

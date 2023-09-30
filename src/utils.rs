@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+use lazy_static::lazy_static;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
@@ -22,6 +24,14 @@ macro_rules! write {
 }
 
 #[macro_export]
+macro_rules! write_buf {
+    ($($arg:tt)*) => {{
+        let formatted = format!($($arg)*);
+        utils::write_buf(formatted);
+    }};
+}
+
+#[macro_export]
 macro_rules! writeln {
     ($state:expr, $($arg:tt)*) => {{
         $state.cursor_y += 1;
@@ -30,14 +40,34 @@ macro_rules! writeln {
     }};
 }
 
+#[macro_export]
+macro_rules! writeln_buf {
+    ($state:expr, $($arg:tt)*) => {{
+        $state.cursor_y += 1;
+        let formatted = format!($($arg)*);
+        utils::write_buf(formatted + consts::NEWLINE);
+    }};
+}
+
+lazy_static! {
+    static ref WRITE_BUFFER: Mutex<Vec<char>> = Mutex::new(vec![]);
+}
+
 pub fn write(out_str: impl Into<String>) {
+  let mut write_buffer = WRITE_BUFFER.lock().unwrap();
   let out = out_str.into();
-  term_write(out);
+  term_write(write_buffer.iter().collect::<String>() + &out);
+  write_buffer.clear();
+}
+pub fn write_buf(out_str: impl Into<String>) {
+  let mut write_buffer = WRITE_BUFFER.lock().unwrap();
+  let out = out_str.into();
+  write_buffer.extend(out.chars());
 }
 
 pub fn writeln(out_str: impl Into<String>) {
   let out = out_str.into();
-  term_write(out + consts::NEWLINE);
+  write(out + consts::NEWLINE);
 }
 
 #[wasm_bindgen]

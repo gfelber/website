@@ -88,6 +88,9 @@ impl Less {
     let change = filesystem::ROOT.get_file(resolved.clone());
     if !resolved.is_empty() && change.is_ok() {
       let file = change.unwrap();
+      if file.is_dir {
+        return Err(format!("read error: {} Is a directory", path_str))
+      }
       let _ = utils::change_url(&("/".to_string() + file.url));
       info!("{}", file.url);
       let content = Box::leak(Box::new(file.load().unwrap()));
@@ -96,7 +99,7 @@ impl Less {
       return Ok(());
     }
 
-    return Err(format!("{}: No such file or directory", path_str));
+    return Err(format!("{}: No such file", path_str));
   }
 
   fn ansi_clear(&mut self) {

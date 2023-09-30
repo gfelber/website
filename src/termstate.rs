@@ -7,7 +7,7 @@ macro_rules! clear {
       $state.cursor_x = 0;
       let cleared: String = "\n".repeat($state.height);
       let ups: String = consts::UP.repeat($state.height);
-      write!("{}{}\r", cleared, &ups);
+      write_buf!("{}{}\r", cleared, &ups);
     }};
 }
 
@@ -16,7 +16,7 @@ macro_rules! clearln {
     ($state:expr) => {{
       state.cursor_x = 0;
       let out: String = consts::RETURN.repeat($state.cursor_x);
-      write!("{}", out);
+      write_buf!("{}", out);
     }};
 }
 
