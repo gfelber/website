@@ -27,15 +27,13 @@ var term = wasm.term({
     brightWhite:	'#e6e6e6',
   },
   fontFamily: 'Source Code Pro Variable',
-  fontSize: 14
+  fontSize: 13
 });
 const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
-if (!(!!window.chrome && navigator.userAgentData.mobile)) {
-  term.loadAddon(new WebglAddon());
-}
+term.loadAddon(new WebglAddon());
 
 function init() {
   let domterm = document.getElementById('terminal');
