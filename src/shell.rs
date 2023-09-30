@@ -481,6 +481,7 @@ impl Shell {
           self.history_index += 1
         }
         self.clearline(state);
+        write!("");
         self.input_buffer.clear();
         state.cursor_x = PREFIX.len();
       }

@@ -83,6 +83,7 @@ impl Term {
         let mut less_app = less::Less::new();
         less_app.less(&mut self.state, &location_str).unwrap();
         self.app = Box::new(less_app);
+        return;
       }
     }
     self.app = Box::new(shell::Shell::new());
