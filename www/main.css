@@ -4,12 +4,13 @@ body{
   font-family: "Source Code Pro Variable";
   font-size: 14px;
   color: #EAFFE5;
+  background: #181818;
 }
 #terminal{
   position: absolute;
-  height: 100%;
-  width: 100%;
-  background: #181818;
+  height: calc(100% - 10px);
+  width: calc(100% - 10px);
+  padding: 5px;
 }
 .xterm-viewport::-webkit-scrollbar {  
   display: none;

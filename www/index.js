@@ -33,7 +33,7 @@ const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
-if (!(!!window.chrome && !navigator.userAgentData.mobile)) {
+if (!(!!window.chrome && navigator.userAgentData.mobile)) {
   term.loadAddon(new WebglAddon());
 }
 
@@ -59,7 +59,7 @@ document.fonts.ready.then(() => {
 
 addEventListener("resize", () => {
   fitAddon.fit();
-  term.write("\r" + wasm.init(term.rows, term.cols, window.location.pathname));
+  wasm.init(term.rows, term.cols, window.location.pathname);
 });
 
 
