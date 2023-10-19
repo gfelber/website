@@ -235,7 +235,7 @@ impl Shell {
   }
 
   fn whoami(&mut self, state: &mut TermState, _args: &str) {
-    write_solo!(state, "gfelber (0x6fe1be2)");
+    write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
   }
 
   fn history(&mut self, state: &mut TermState, _args: &str) {
@@ -402,7 +402,7 @@ impl Shell {
             cat\tFILE\tprint file to stdout\n\r\
             less\tFILE\tview file in screen\n\r\
             echo\tMSG\techo message\n\r\
-            history\t\tprint cmd history\
+            history\t\tprint cmd history\n\r\
             help\t\tprint this message\
             ";
     write_solo!(state, help);
@@ -447,7 +447,7 @@ impl Shell {
       _ => {
         state.cursor_y += 1;
         state.cursor_x = PREFIX.len();
-        write_solo!(state, format!("command not found: {}", cmd));
+        write_solo!(state, format!("command not found: {}, try using help", cmd));
       }
     };
     return None;
