@@ -230,8 +230,12 @@ impl Shell {
     write_solo!(state, args);
   }
 
+  fn whereis(&mut self, state: &mut TermState, _args: &str) {
+    write_solo!(state, "https://github.com/gfelber/website");
+  }
+
   fn whoami(&mut self, state: &mut TermState, _args: &str) {
-    write_solo!(state, "user");
+    write_solo!(state, "gfelber (0x6fe1be2)");
   }
 
   fn history(&mut self, state: &mut TermState, _args: &str) {
@@ -392,6 +396,7 @@ impl Shell {
             clear\t\tclear terminal\n\r\
             pwd\t\tprint current directory (or just check URL)\n\r\
             whoami\t\tprint current user\n\r\
+            whereis\t\tLocate where stuff is\n\r\
             ls\t[PATH]\tlist directory contents\n\r\
             cd\t[DIR]\tchange directory\n\r\
             cat\tFILE\tprint file to stdout\n\r\
@@ -432,6 +437,7 @@ impl Shell {
       "cd" => self.cd(state, cmdline),
       "ls" => self.ls(state, cmdline),
       "cat" => self.cat(state, cmdline),
+      "whereis" => self.whereis(state, cmdline),
       "less" => {
         return self.less(state, cmdline);
       }

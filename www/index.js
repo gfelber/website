@@ -30,10 +30,12 @@ var term = wasm.term({
   fontSize: 13
 });
 const fitAddon = new FitAddon();
-term.loadAddon(fitAddon);
 term.loadAddon(new WebLinksAddon());
 term.loadAddon(new CanvasAddon());
 term.loadAddon(new WebglAddon());
+term.loadAddon(fitAddon);
+const is_chrome_mobile = window.chrome && navigator.userAgentData.mobile
+console.log(is_chrome_mobile)
 
 function init() {
   let domterm = document.getElementById('terminal');
