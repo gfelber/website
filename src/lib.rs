@@ -81,7 +81,12 @@ impl Term {
       } else {
         self.state.path = &mut filesystem::ROOT.get_file(&(location_str.clone() + "/..")).unwrap();
         let mut less_app = less::Less::new();
-        less_app.less(&mut self.state, &location_str).unwrap();
+        let offset = match location_str.rfind("/") {
+          Some(off) => off + 1,
+          None => 0
+        };
+        let filename = &location_str[offset..];
+        less_app.less(&mut self.state, filename).unwrap();
         self.app = Box::new(less_app);
         return;
       }

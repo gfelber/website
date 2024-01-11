@@ -1,0 +1,1 @@
+writeups/hxp_2022_browser_insanity.md
