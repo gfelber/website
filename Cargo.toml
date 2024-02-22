@@ -6,7 +6,7 @@ edition = "2021"
 license = "GPL-3"
 description = "terminal backend in rust wasm"
 repository = "https://github.com/gfelber/website"
-build = "build.rs"
+links = "build.rs"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

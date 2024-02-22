@@ -1,1 +1,1 @@
-writeups/hxp_2022_browser_insanity.md
+writeups/LA_CTF_2024_woogie-boogie.md

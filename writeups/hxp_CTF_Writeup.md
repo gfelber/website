@@ -115,7 +115,7 @@ qemu-system-x86_64 \
 	-hda images/flag_fake.img \									# flag.img mounted to /hd0/1/
 ```
 
-#### Mount and edit kolibriimg img
+#### https://enzo.run/posts/lactf2024/Mount and edit kolibriimg img
 
 We can also mount the operating image to copy our own binaries for testing.
 
@@ -172,7 +172,7 @@ kolibrios/kernel				# kernel code
 ...
 kolibrios/programs				# programs inside os
 ...
-kolibrios/programs/network		# networking programs (important for exploit)
+kolibrios/programs/network		# networking programs (important for exploit)https://enzo.run/posts/lactf2024/
 ...
 kolibrios/programs/cmm/browser	# browser
 ...
