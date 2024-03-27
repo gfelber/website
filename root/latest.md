@@ -1,1 +1,1 @@
-writeups/LA_CTF_2024_woogie-boogie.md
+writeups/openECSC24_round1_rovermaster.md
