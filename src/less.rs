@@ -21,7 +21,7 @@ impl App for Less {
       self.ansi(state, &ansistr);
       return None;
     }
-    return match input {
+    match input {
       // ansi
       '\x1b' => {
         self.ansi = true;
@@ -47,7 +47,7 @@ impl App for Less {
       _ => {
         None
       }
-    };
+    }
   }
 }
 
@@ -87,19 +87,19 @@ impl Less {
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(resolved.clone());
     if !resolved.is_empty() && change.is_ok() {
-      let file = change.unwrap();
+      let file = change?;
       if file.is_dir {
         return Err(format!("read error: {} Is a directory", path_str))
       }
       let _ = utils::change_url(&("/".to_string() + file.url));
       info!("{}", file.url);
-      let content = Box::leak(Box::new(file.load().unwrap()));
+      let content = Box::leak(Box::new(file.load()?));
       self.lines = content.lines().collect();
       self.less_from(state, 0);
       return Ok(());
     }
 
-    return Err(format!("{}: No such file", path_str));
+    Err(format!("{}: No such file", path_str))
   }
 
   fn ansi_clear(&mut self) {

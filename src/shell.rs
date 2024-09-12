@@ -48,9 +48,10 @@ macro_rules! parse_args {
       Err(error) => {
         let error_str = error.to_string();
         let lines: Vec<&str> = error_str.lines().collect();
-        $state.cursor_x = PREFIX.len();
         $state.cursor_y += lines.len() + 2;
-        write_solo!($state, lines.join(consts::NEWLINE));
+        new!($state);
+        write_buf!("{}", lines.join(consts::NEWLINE));
+        new!($state);
         return $ret;
       }
     }
@@ -121,7 +122,7 @@ impl App for Shell {
       self.ansi(state, &ansistr);
       return None;
     }
-    return match input {
+    match input {
       '\r' | '\n' => {
         let cmd: String = self.input_buffer.iter().collect();
         info!("{}", cmd);
@@ -133,6 +134,7 @@ impl App for Shell {
       '\x15' => {
         self.clearline(state);
         self.input_buffer.clear();
+        write!("");
         None
       }
       // clear
@@ -195,7 +197,7 @@ impl App for Shell {
         warn!("character not supported: {:02x}", input as u32);
         None
       }
-    };
+    }
   }
 }
 
@@ -260,7 +262,7 @@ impl Shell {
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(&resolved);
     if resolved.is_empty() || change.is_ok() {
-      if !lsargs.directory && (resolved.is_empty() || change.clone().unwrap().is_dir) {
+      return if !lsargs.directory && (resolved.is_empty() || change.clone().unwrap().is_dir) {
         let dir = if resolved.is_empty() {
           &filesystem::ROOT
         } else {
@@ -311,7 +313,7 @@ impl Shell {
             entries.push(out);
           }
         }
-        return if lsargs.list {
+        if lsargs.list {
           let totalsize_str = if lsargs.human { utils::human_size(totalsize) } else { format!("{}", totalsize) };
           format!("{}{}total {}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""))
         } else {
@@ -326,7 +328,7 @@ impl Shell {
           filename = Colour::Blue.bold().paint(filename).to_string();
           prefix = format!("{}\t{}\t{} ", DIR_PREFIX, file.size, file.get_date_str());
         }
-        return if lsargs.list {
+        if lsargs.list {
           consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE
         } else {
           consts::NEWLINE.to_string() + &filename + consts::NEWLINE
@@ -334,7 +336,7 @@ impl Shell {
       }
     }
     state.cursor_y += 2;
-    return format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string());
+    format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string())
   }
 
   fn cd(&mut self, state: &mut TermState, cmdline: &str) {
@@ -411,13 +413,13 @@ impl Shell {
   fn less(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
     let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
     let mut less = Less::new();
-    return match less.less(state, &args.file) {
+    match less.less(state, &args.file) {
       Ok(()) => Some(Box::new(less)),
       Err(error) => {
         write_solo!(state, error);
         None
       }
-    };
+    }
   }
 
 
@@ -429,7 +431,7 @@ impl Shell {
     self.history_index = history.len();
     drop(history);
     let mut cmd_args = cmdline.split(" ");
-    let cmd = cmd_args.next().unwrap();
+    let cmd = cmd_args.next()?;
     match cmd {
       "clear" => Shell::clear(state),
       "pwd" => self.pwd(state, ""),
@@ -450,7 +452,7 @@ impl Shell {
         write_solo!(state, format!("command not found: {}, try using help", cmd));
       }
     };
-    return None;
+    None
   }
 
 
@@ -513,7 +515,7 @@ impl Shell {
       }
       consts::PAGE_END => {
         self.ansi_clear();
-        let repeat = self.input_buffer.len() - state.cursor_x - PREFIX.len();
+        let repeat = self.input_buffer.len() + PREFIX.len() - state.cursor_x;
         state.cursor_x = self.input_buffer.len() + PREFIX.len();
         write!("{}", consts::RIGHT.repeat(repeat));
       }

@@ -155,12 +155,12 @@ pub fn fetch(url_str: impl Into<String>) -> Result<String, String> {
 pub async fn afetch(url_str: impl Into<String>) -> Result<String, String> {
   let url = url_str.into();
   let mut opts = RequestInit::new();
-  opts.method("GET");
-  opts.mode(RequestMode::Cors);
+  opts.set_method("GET");
+  opts.set_mode(RequestMode::Cors);
 
   let request = Request::new_with_str_and_init(&url, &opts).expect("failed to create request");
 
-  let window = web_sys::window().unwrap();
+  let window = window().unwrap();
   let resp_value = JsFuture::from(window.fetch_with_request(&request)).await.expect("request failed");
 
   // `resp_value` is a `Response` object.

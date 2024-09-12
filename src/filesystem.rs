@@ -26,7 +26,7 @@ const ROOT_URL: &str = "/root/";
 
 impl Entry {
   pub fn new() -> Entry {
-    return ron::from_str(ROOT_SERIALIZED).unwrap();
+    ron::from_str(ROOT_SERIALIZED).unwrap()
   }
 
   fn get_file_rec(&self, files: &Vec<&str>) -> Result<&Entry, String> {
@@ -35,7 +35,7 @@ impl Entry {
     if files.is_empty() {
       return Ok(entry);
     }
-    return entry.get_file_rec(files);
+    entry.get_file_rec(files)
   }
 
   pub fn get_file(&self, path_str: impl Into<String>) -> Result<&Entry, String> {
@@ -44,15 +44,15 @@ impl Entry {
     if files.is_empty() {
       return Ok(self);
     }
-    return self.get_file_rec(&files);
+    self.get_file_rec(&files)
   }
 
   pub fn get_size(&self, human: bool) -> String {
-    return if human {
+    if human {
       utils::human_size(self.size)
     } else {
       format!("{}", self.size)
-    };
+    }
   }
 
   pub fn get_date_str(&self) -> String {
@@ -60,16 +60,16 @@ impl Entry {
       self.modified as i64, 0,
     ).unwrap();
 
-    return datetime.format("%b %e %H:%M").to_string();
+    datetime.format("%b %e %H:%M").to_string()
   }
 
   pub fn join(&self, path_str: impl Into<String>) -> String {
     let path = path_str.into();
-    return if path.starts_with("/") {
+    if path.starts_with("/") {
       path
     } else {
       self.url.to_string() + "/" + &path
-    };
+    }
   }
 
   pub fn load(&self) -> Result<String, String> {
