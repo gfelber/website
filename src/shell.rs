@@ -1,3 +1,4 @@
+use std::env::consts::DLL_PREFIX;
 use std::sync::Mutex;
 
 use ansi_term::Colour;
@@ -5,10 +6,10 @@ use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
 use log::{info, warn};
 
-use crate::{clear, consts, filesystem, utils, write, writeln, write_buf, writeln_buf};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
+use crate::{clear, consts, filesystem, utils, write, write_buf, writeln, writeln_buf};
 
 const PREFIX: &str = "$ ";
 const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot";
@@ -23,7 +24,7 @@ macro_rules! new {
 
 macro_rules! prefix {
   ($state:expr) => {{
-    $state.cursor_x += PREFIX.len();
+    $state.cursor_x = PREFIX.len();
     write!("{}", PREFIX);
   }};
 }
@@ -43,19 +44,17 @@ macro_rules! write_solo {
 
 macro_rules! parse_args {
   ($state:expr, $e:expr, $ret:expr) => {
-    match $e{
-      Ok(args) => {args}
+    match $e {
+      Ok(args) => args,
       Err(error) => {
         let error_str = error.to_string();
         let lines: Vec<&str> = error_str.lines().collect();
         $state.cursor_y += lines.len() + 2;
-        new!($state);
-        write_buf!("{}", lines.join(consts::NEWLINE));
-        new!($state);
+        write_solo!($state, lines.join(consts::NEWLINE));
         return $ret;
       }
     }
-  }
+  };
 }
 
 #[derive(Parser)]
@@ -97,7 +96,7 @@ struct LessArgs {
 }
 
 lazy_static! {
-    static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
+  static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
 }
 
 pub struct Shell {
@@ -174,7 +173,9 @@ impl App for Shell {
           if self.insert {
             self.input_buffer[state.cursor_x - PREFIX.len()] = input;
           } else {
-            self.input_buffer.insert(state.cursor_x - PREFIX.len(), input);
+            self
+              .input_buffer
+              .insert(state.cursor_x - PREFIX.len(), input);
             let new_x = state.cursor_x + 1;
             let input_str: String = self.input_buffer.iter().collect();
             let left = consts::LEFT.repeat(self.input_buffer.len() - (new_x - PREFIX.len()));
@@ -220,7 +221,8 @@ impl Shell {
   }
 
   fn clearline(&mut self, state: &mut TermState) {
-    let right: String = consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
+    let right: String =
+      consts::RIGHT.repeat(self.input_buffer.len() - (state.cursor_x - PREFIX.len()));
     let clear: String = consts::RETURN.repeat(self.input_buffer.len());
     state.cursor_x = PREFIX.len();
     write_buf!("{}{}", right, clear);
@@ -250,12 +252,20 @@ impl Shell {
   }
 
   fn ls(&mut self, state: &mut TermState, cmdline: &str) {
-    write_buf!("{}", self.ls_rec(state, cmdline));
-    state.cursor_x = 0;
-    prefix!(state);
+    let out = self.ls_rec(state, cmdline);
+    write!("{}", out);
+    // only is empty if error was encountered
+    if !out.is_empty() {
+      prefix!(state);
+    }
   }
+
   fn ls_rec(&mut self, state: &mut TermState, cmdline: &str) -> String {
-    let lsargs = parse_args!(state, LsArgs::try_parse_from(cmdline.split(" ")), "".to_string());
+    let lsargs = parse_args!(
+      state,
+      LsArgs::try_parse_from(cmdline.split(" ")),
+      "".to_string()
+    );
     let path_str = lsargs.file.unwrap_or(".".to_string());
     let path = state.path.join(path_str.clone());
     let resolved = utils::resolve_path(&path);
@@ -285,7 +295,14 @@ impl Shell {
             if lsargs.list {
               state.cursor_y += 1;
               totalsize += entry.size;
-              entries.push(format!("{}\t{}\t{} {}{}", DIR_PREFIX, entry.get_size(lsargs.human), entry.get_date_str(), formatted_name, consts::NEWLINE));
+              entries.push(format!(
+                "{}\t{}\t{} {}{}",
+                DIR_PREFIX,
+                entry.get_size(lsargs.human),
+                entry.get_date_str(),
+                formatted_name,
+                consts::NEWLINE
+              ));
             } else {
               entries.push(formatted_name);
             }
@@ -293,7 +310,14 @@ impl Shell {
             if lsargs.list {
               state.cursor_y += 1;
               totalsize += entry.size;
-              entries.push(format!("{}\t{}\t{} {}{}", FILE_PREFIX, entry.get_size(lsargs.human), entry.get_date_str(), name, consts::NEWLINE));
+              entries.push(format!(
+                "{}\t{}\t{} {}{}",
+                FILE_PREFIX,
+                entry.get_size(lsargs.human),
+                entry.get_date_str(),
+                name,
+                consts::NEWLINE
+              ));
             } else {
               entries.push(name.to_string());
             }
@@ -306,18 +330,33 @@ impl Shell {
         if lsargs.recursive {
           for entry in recursive_dirs {
             let mut options = "-R".to_string();
-            if lsargs.list { options += "l" }
-            if lsargs.human { options += "h" }
+            if lsargs.list {
+              options += "l"
+            }
+            if lsargs.human {
+              options += "h"
+            }
             let file = &format!("{}/{}", path_str, entry);
             let out = self.ls_rec(state, &format!("ls {} {}", options, file));
             entries.push(out);
           }
         }
         if lsargs.list {
-          let totalsize_str = if lsargs.human { utils::human_size(totalsize) } else { format!("{}", totalsize) };
-          format!("{}{}total {}{}{}", consts::NEWLINE, prefix, totalsize_str, consts::NEWLINE, &entries.join(""))
+          let totalsize_str = if lsargs.human {
+            utils::human_size(totalsize)
+          } else {
+            format!("{}", totalsize)
+          };
+          format!(
+            "{}{}total {}{}{}",
+            consts::NEWLINE,
+            prefix,
+            totalsize_str,
+            consts::NEWLINE,
+            &entries.join("")
+          )
         } else {
-          consts::NEWLINE.to_string() + &prefix + &entries.join("\t")
+          format!("{}{}{}", consts::NEWLINE, prefix, &entries.join("\t"))
         }
       } else {
         let file = change.unwrap_or(state.path);
@@ -329,14 +368,25 @@ impl Shell {
           prefix = format!("{}\t{}\t{} ", DIR_PREFIX, file.size, file.get_date_str());
         }
         if lsargs.list {
-          consts::NEWLINE.to_string() + &prefix + &filename + consts::NEWLINE
+          format!(
+            "{}{}{}{}",
+            consts::NEWLINE,
+            prefix,
+            filename,
+            consts::NEWLINE
+          )
         } else {
-          consts::NEWLINE.to_string() + &filename + consts::NEWLINE
+          format!("{}{}{}", consts::NEWLINE, filename, consts::NEWLINE)
         }
-      }
+      };
     }
     state.cursor_y += 2;
-    format!("{}{}: No such file or directory{}", consts::NEWLINE, path_str, consts::NEWLINE.to_string())
+    format!(
+      "{}{}: No such file or directory{}",
+      consts::NEWLINE,
+      path_str,
+      consts::NEWLINE
+    )
   }
 
   fn cd(&mut self, state: &mut TermState, cmdline: &str) {
@@ -346,9 +396,9 @@ impl Shell {
     let resolved = utils::resolve_path(&path);
     info!("{}", resolved);
     let change = filesystem::ROOT.get_file(resolved);
-    if change.is_ok()  {
+    if change.is_ok() {
       let dir = change.unwrap();
-      if !dir.is_dir{
+      if !dir.is_dir {
         write_solo!(state, format!("can't cd to {}: Not a directory", path_str));
         return;
       }
@@ -422,7 +472,6 @@ impl Shell {
     }
   }
 
-
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
     let mut history = CMD_HISTORY.lock().unwrap();
     if history.is_empty() || history[history.len() - 1] != cmdline {
@@ -454,7 +503,6 @@ impl Shell {
     };
     None
   }
-
 
   fn ansi_clear(&mut self) {
     self.ansi_buffer.clear();
