@@ -6,7 +6,7 @@ server:
 publish: dist
 	cd www/dist; \
 	git add -A; \
-	git commit -m "gfelber/website@$(git --git-dir ../../.git log --format="%H" -n 1)"; \
+	git commit -m "gfelber/website@`git --git-dir ../../.git log --format="%H" -n 1`"; \
 	git push
 
 dist: release
