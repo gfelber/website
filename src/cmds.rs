@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::Once;
 
 use ansi_term::Colour;
 use clap::{ArgAction, Parser};
 use lazy_static::lazy_static;
-use log::{info, warn};
+use log::info;
 use macros::{cmds_init, shell_cmd};
 
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
-use crate::{clear, consts, filesystem, utils, write, write_buf, writeln, writeln_buf};
+use crate::{consts, filesystem, utils, write, write_buf, writeln, writeln_buf};
 
 const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot";
 const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot";
@@ -112,7 +111,9 @@ lazy_static! {
 
 #[shell_cmd(COMMANDS)]
 pub fn echo(state: &mut TermState, args: &str) -> Option<Box<dyn App>> {
-  write_solo!(state, args);
+  let mut cmd_args = args.splitn(2, ' ');
+  _ = cmd_args.next();
+  write_solo!(state, cmd_args.next().unwrap_or(""));
   None
 }
 

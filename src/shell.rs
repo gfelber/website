@@ -1,7 +1,4 @@
-use ansi_term::Colour;
-use lazy_static::lazy_static;
 use log::{info, warn};
-use macros::shell_cmd;
 
 use crate::app::App;
 use crate::cmds::{cmds_init, CMD_HISTORY, COMMANDS};
