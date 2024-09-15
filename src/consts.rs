@@ -10,3 +10,4 @@ pub const PAGE_END: &str = "\x1b\x5b\x46";
 pub const INSERT: &str = "\x1b\x5b\x32\x7e";
 pub const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 pub const NEWLINE: &str = "\n\r";
+pub const PREFIX: &str = "$ ";

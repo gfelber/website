@@ -1,10 +1,10 @@
 [package]
 name = "wasm-backend"
 version = "0.1.0"
-authors = ["gfelber <@users.noreply.github.com>"]
+authors = ["0x6fe1be2 <34159565+gfelber@users.noreply.github.com>"]
 edition = "2021"
 license = "GPL-3"
-description = "terminal backend in rust wasm"
+description = "terminal backend in rust wasm for xterm"
 repository = "https://github.com/gfelber/website"
 links = "build.rs"
 
@@ -14,8 +14,8 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["console_error_panic_hook", "console_log"]
 
-
 [dependencies]
+macros = { path = "macros" }
 wasm-bindgen = "0.2.93"
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -24,7 +24,7 @@ wasm-bindgen = "0.2.93"
 console_error_panic_hook = { version = "0.1.7", optional = true }
 ansi_term = "0.12.1"
 lazy_static = { version = "1.5.0", features = [] }
-console_log = { version = "1.0.0", features = ["color"], optional = true}
+console_log = { version = "1.0.0", features = ["color"], optional = true }
 cfg-if = "1.0.0"
 log = { version = "0.4.22", features = [] }
 clap = { version = "4.5.17", features = ["derive"] }
@@ -32,6 +32,9 @@ serde = { version = "1.0.210", features = ["derive"] }
 ron = "0.8.1"
 wasm-bindgen-futures = "0.4.43"
 chrono = { version = "0.4.38", features = [] }
+ctor = "0.2.8"
+proc-macro2 = "1.0.86"
+
 
 [build-dependencies]
 serde = { version = "1.0.210", features = ["derive"] }

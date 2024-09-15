@@ -1,7 +1,6 @@
 #![feature(str_split_remainder)]
 #![feature(negative_impls)]
 
-
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
@@ -10,13 +9,14 @@ use lazy_static::lazy_static;
 use log::info;
 use wasm_bindgen::prelude::*;
 
-mod utils;
-mod consts;
 mod app;
-mod shell;
-mod less;
-mod termstate;
+mod cmds;
+mod consts;
 mod filesystem;
+mod less;
+mod shell;
+mod termstate;
+mod utils;
 
 cfg_if! {
     if #[cfg(feature = "console_log")] {
@@ -30,7 +30,7 @@ cfg_if! {
 }
 
 lazy_static! {
-    static ref TERM: Mutex<Term> = Mutex::new(Term::new());
+  static ref TERM: Mutex<Term> = Mutex::new(Term::new());
 }
 
 #[wasm_bindgen]
@@ -79,11 +79,13 @@ impl Term {
       if path.clone().unwrap().is_dir {
         self.state.path = path.unwrap();
       } else {
-        self.state.path = &mut filesystem::ROOT.get_file(&(location_str.clone() + "/..")).unwrap();
+        self.state.path = &mut filesystem::ROOT
+          .get_file(&(location_str.clone() + "/.."))
+          .unwrap();
         let mut less_app = less::Less::new();
         let offset = match location_str.rfind("/") {
           Some(off) => off + 1,
-          None => 0
+          None => 0,
         };
         let filename = &location_str[offset..];
         less_app.less(&mut self.state, filename).unwrap();
@@ -109,7 +111,9 @@ impl Term {
     if app.is_some() {
       self.app = app.unwrap();
     }
-    info!("({}|{})->({}|{})", x, y, self.state.cursor_x, self.state.cursor_y);
+    info!(
+      "({}|{})->({}|{})",
+      x, y, self.state.cursor_x, self.state.cursor_y
+    );
   }
 }
-
