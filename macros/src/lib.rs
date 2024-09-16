@@ -6,8 +6,7 @@ use syn::{
   parse::{Parse, ParseStream},
   parse_macro_input,
   punctuated::Punctuated,
-  spanned::Spanned,
-  Expr, ExprLit, ItemFn, Lit, LitStr, Meta, MetaList, MetaNameValue, PatLit, Token,
+  Expr, ExprLit, ItemFn, Lit, Token,
 };
 
 // A static mutable global map to keep track of registered commands

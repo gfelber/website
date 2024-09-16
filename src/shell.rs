@@ -1,7 +1,7 @@
 use log::{info, warn};
 
 use crate::app::App;
-use crate::cmds::{self, cmds_init, CMD_HISTORY, COMMANDS};
+use crate::cmds::{self, CMD_HISTORY, COMMANDS};
 use crate::termstate::TermState;
 use crate::{consts, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf};
 
@@ -9,7 +9,6 @@ pub struct Shell {
   input_buffer: Vec<char>,
   ansi_buffer: Vec<char>,
   history_index: usize,
-  autocomplete_index: usize,
   ansi: bool,
   insert: bool,
 }
@@ -115,7 +114,6 @@ impl Shell {
       input_buffer: vec![],
       ansi_buffer: vec![],
       history_index: 0,
-      autocomplete_index: 0,
       ansi: false,
       insert: false,
     }
@@ -133,7 +131,36 @@ impl Shell {
     write_buf!("{}{}", right, clear);
   }
 
-  fn autocomplete(&mut self, state: &mut TermState) {}
+  fn autocomplete(&mut self, state: &mut TermState) {
+    if !self.input_buffer.iter().any(|x| x == &' ') {
+      let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
+      let inputstr: String = self.input_buffer.iter().collect();
+      let filtered_cmds: Vec<_> = cmds
+        .iter()
+        .filter(|cmd| cmd.starts_with(&inputstr))
+        .collect();
+      return if filtered_cmds.is_empty() {
+      } else if filtered_cmds.len() == 1 {
+        let cmd = format!("{} ", filtered_cmds.first().unwrap());
+        self.clearline(state);
+        write!("{}", cmd);
+        state.cursor_x += cmd.len();
+        self.input_buffer = cmd.chars().collect();
+      } else {
+        write_solo!(
+          state,
+          filtered_cmds
+            .into_iter()
+            .map(|x| x.to_owned())
+            .collect::<Vec<_>>()
+            .join("\t")
+        );
+        state.cursor_x += inputstr.len();
+        write!("{}", inputstr);
+      };
+    }
+    // TODO: implement file autocompletion
+  }
 
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
     let mut history = CMD_HISTORY.lock().unwrap();
