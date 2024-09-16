@@ -1,9 +1,9 @@
 use log::{info, warn};
 
 use crate::app::App;
-use crate::cmds::{cmds_init, CMD_HISTORY, COMMANDS};
+use crate::cmds::{self, cmds_init, CMD_HISTORY, COMMANDS};
 use crate::termstate::TermState;
-use crate::{clear, consts, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf};
+use crate::{consts, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf};
 
 pub struct Shell {
   input_buffer: Vec<char>,
@@ -123,8 +123,7 @@ impl Shell {
   }
 
   pub fn clear(state: &mut TermState) {
-    clear!(state);
-    prefix!(state);
+    cmds::clear(state, "");
   }
 
   fn clearline(&self, state: &mut TermState) {

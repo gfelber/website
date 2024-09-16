@@ -2,14 +2,55 @@ use once_cell::sync::Lazy;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use std::sync::Mutex;
-use syn::{parse_macro_input, ItemFn, Meta};
+use syn::{
+  parse::{Parse, ParseStream},
+  parse_macro_input,
+  punctuated::Punctuated,
+  spanned::Spanned,
+  Expr, ExprLit, ItemFn, Lit, LitStr, Meta, MetaList, MetaNameValue, PatLit, Token,
+};
 
 // A static mutable global map to keep track of registered commands
 static REGISTERED_COMMANDS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
+struct ShellCmdArgs {
+  commands: Expr,
+  helps: Expr,
+  help_msg: String,
+}
+
+impl Parse for ShellCmdArgs {
+  fn parse(input: ParseStream) -> syn::Result<Self> {
+    let args: Punctuated<Expr, Token![,]> = input.parse_terminated(Expr::parse, Token![,])?;
+
+    let commands = args[0].clone();
+
+    let helps = args[1].clone();
+
+    let other = if let Expr::Lit(ExprLit {
+      lit: Lit::Str(lit_str),
+      ..
+    }) = &args[2]
+    {
+      lit_str.value()
+    } else {
+      return Err(syn::Error::new_spanned(
+        &args[2],
+        "expected a string literal",
+      ));
+    };
+
+    Ok(ShellCmdArgs {
+      commands,
+      helps,
+      help_msg: other,
+    })
+  }
+}
+
 #[proc_macro_attribute]
 pub fn shell_cmd(attr: TokenStream, item: TokenStream) -> TokenStream {
-  let attr = parse_macro_input!(attr as Meta);
+  let args = parse_macro_input!(attr as ShellCmdArgs);
   // Parse the input as `ItemFn`
   let item = parse_macro_input!(item as ItemFn);
 
@@ -29,12 +70,11 @@ pub fn shell_cmd(attr: TokenStream, item: TokenStream) -> TokenStream {
     .unwrap()
     .push(function_name.clone());
 
-  let cmds_ident = match attr {
-    Meta::Path(path) => path.get_ident().unwrap().clone(),
-    _ => panic!("Expected a single identifier as attribute argument"),
-  };
-
   let register_function_name = format_ident!("__register_{}", function_name);
+
+  let commands = args.commands;
+  let helps = args.helps;
+  let help_msg = args.help_msg;
 
   // Reconstruct the function as output using parsed input
   quote!(
@@ -48,7 +88,8 @@ pub fn shell_cmd(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     pub fn #register_function_name() {
       info!("registering {}", #function_name);
-      #cmds_ident.lock().unwrap().insert(#function_name, #function_identifier);
+      #commands.lock().unwrap().insert(#function_name, #function_identifier);
+      #helps.lock().unwrap().push(#help_msg);
     }
 
   )

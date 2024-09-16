@@ -10,7 +10,7 @@ use macros::{cmds_init, shell_cmd};
 use crate::app::App;
 use crate::less::Less;
 use crate::termstate::TermState;
-use crate::{consts, filesystem, utils, write, write_buf, writeln, writeln_buf};
+use crate::{clear, consts, filesystem, utils, write, write_buf, writeln, writeln_buf};
 
 const DIR_PREFIX: &str = "dr-xr-xr-x\t2 root\troot";
 const FILE_PREFIX: &str = "-r--r--r--\t1 root\troot";
@@ -106,10 +106,36 @@ type CommandFn = fn(&mut TermState, &str) -> Option<Box<dyn App>>;
 
 lazy_static! {
   pub static ref COMMANDS: Mutex<HashMap<&'static str, CommandFn>> = Mutex::new(HashMap::new());
+  pub static ref HELPS: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
   pub static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
 }
 
-#[shell_cmd(COMMANDS)]
+#[shell_cmd(COMMANDS, HELPS, "clear\t\tclear terminal")]
+pub fn clear(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  clear!(state);
+  prefix!(state);
+  None
+}
+
+#[shell_cmd(COMMANDS, HELPS, "pwd\t\tprint current directory (or just check URL)")]
+pub fn pwd(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  write_solo!(state, "/".to_string() + &state.path.url);
+  None
+}
+
+#[shell_cmd(COMMANDS, HELPS, "whoami\t\tprint current user")]
+pub fn whoami(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
+  None
+}
+
+#[shell_cmd(COMMANDS, HELPS, "whereis\t\tLocate where stuff is")]
+pub fn whereis(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  write_solo!(state, "https://github.com/gfelber/website");
+  None
+}
+
+#[shell_cmd(COMMANDS, HELPS, "echo\tMSG\techo message")]
 pub fn echo(state: &mut TermState, args: &str) -> Option<Box<dyn App>> {
   let mut cmd_args = args.splitn(2, ' ');
   _ = cmd_args.next();
@@ -117,30 +143,54 @@ pub fn echo(state: &mut TermState, args: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS)]
-pub fn whereis(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  write_solo!(state, "https://github.com/gfelber/website");
-  None
-}
-
-#[shell_cmd(COMMANDS)]
-pub fn whoami(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
-  None
-}
-
-#[shell_cmd(COMMANDS)]
-fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  let history = CMD_HISTORY.lock().unwrap();
-  new!(state);
-  for (index, cmd) in history.iter().enumerate() {
-    writeln!(state, "{:-4} {}", index, cmd);
+#[shell_cmd(COMMANDS, HELPS, "cat\tFILE\tprint file to stdout")]
+pub fn cat(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+  let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")), None);
+  let path_str = args.file;
+  let path = state.path.join(path_str.clone());
+  info!("{}", path);
+  let resolved = utils::resolve_path(&path);
+  info!("{}", resolved);
+  let change = filesystem::ROOT.get_file(&resolved);
+  if change.is_ok() {
+    let file = change.unwrap();
+    if file.is_dir {
+      write_solo!(state, format!("read error: {} Is a directory", path_str));
+      return None;
+    }
+    info!("{}", file.url);
+    let content = file.load().unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    state.cursor_y += lines.len() + 2;
+    state.cursor_x = consts::PREFIX.len();
+    new!(state);
+    for line in lines {
+      writeln!(state, "{}", line);
+    }
+    prefix!(state);
+  } else {
+    write_solo!(state, format!("{}: No such file", path_str));
   }
-  prefix!(state);
   None
 }
 
-#[shell_cmd(COMMANDS)]
+#[shell_cmd(COMMANDS, HELPS, "less\tFILE\tview file in screen")]
+pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+  let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
+  let mut less = Less::new();
+  match less.less(state, &args.file) {
+    Ok(()) => {
+      let app_box: Box<dyn App> = Box::new(less);
+      Some(app_box)
+    }
+    Err(error) => {
+      write_solo!(state, error);
+      None
+    }
+  }
+}
+
+#[shell_cmd(COMMANDS, HELPS, "ls\t[PATH]\tlist directory contents")]
 pub fn ls(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let out = ls_rec(state, cmdline);
   write!("{}", out);
@@ -280,7 +330,7 @@ pub fn ls_rec(state: &mut TermState, cmdline: &str) -> String {
   )
 }
 
-#[shell_cmd(COMMANDS)]
+#[shell_cmd(COMMANDS, HELPS, "cd\t[DIR]\tchange directory")]
 pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")), None);
   let path_str = args.dir.unwrap_or("/".to_string());
@@ -303,77 +353,22 @@ pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS)]
-pub fn cat(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
-  let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")), None);
-  let path_str = args.file;
-  let path = state.path.join(path_str.clone());
-  info!("{}", path);
-  let resolved = utils::resolve_path(&path);
-  info!("{}", resolved);
-  let change = filesystem::ROOT.get_file(&resolved);
-  if change.is_ok() {
-    let file = change.unwrap();
-    if file.is_dir {
-      write_solo!(state, format!("read error: {} Is a directory", path_str));
-      return None;
-    }
-    info!("{}", file.url);
-    let content = file.load().unwrap();
-    let lines: Vec<&str> = content.lines().collect();
-    state.cursor_y += lines.len() + 2;
-    state.cursor_x = consts::PREFIX.len();
-    new!(state);
-    for line in lines {
-      writeln!(state, "{}", line);
-    }
-    prefix!(state);
-  } else {
-    write_solo!(state, format!("{}: No such file", path_str));
+#[shell_cmd(COMMANDS, HELPS, "history\t\tprint cmd history")]
+fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  let history = CMD_HISTORY.lock().unwrap();
+  new!(state);
+  for (index, cmd) in history.iter().enumerate() {
+    writeln!(state, "{:-4} {}", index, cmd);
   }
+  prefix!(state);
   None
 }
 
-#[shell_cmd(COMMANDS)]
-pub fn pwd(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  write_solo!(state, "/".to_string() + &state.path.url);
-  None
-}
-
-#[shell_cmd(COMMANDS)]
+#[shell_cmd(COMMANDS, HELPS, "help\t\tprint this message")]
 pub fn help(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   // TODO: generate from macro data
-  let help = "\
-          clear\t\tclear terminal\n\r\
-          pwd\t\tprint current directory (or just check URL)\n\r\
-          whoami\t\tprint current user\n\r\
-          whereis\t\tLocate where stuff is\n\r\
-          ls\t[PATH]\tlist directory contents\n\r\
-          cd\t[DIR]\tchange directory\n\r\
-          cat\tFILE\tprint file to stdout\n\r\
-          less\tFILE\tview file in screen\n\r\
-          echo\tMSG\techo message\n\r\
-          history\t\tprint cmd history\n\r\
-          help\t\tprint this message\
-          ";
-  write_solo!(state, help);
+  write_solo!(state, HELPS.lock().unwrap().join(consts::NEWLINE));
   None
-}
-
-#[shell_cmd(COMMANDS)]
-pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
-  let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
-  let mut less = Less::new();
-  match less.less(state, &args.file) {
-    Ok(()) => {
-      let app_box: Box<dyn App> = Box::new(less);
-      Some(app_box)
-    }
-    Err(error) => {
-      write_solo!(state, error);
-      None
-    }
-  }
 }
 
 #[cmds_init]
