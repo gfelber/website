@@ -372,4 +372,6 @@ pub fn help(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
 }
 
 #[cmds_init]
-pub fn cmds_init() {}
+pub fn cmds_init() {
+  info!("register commands");
+}

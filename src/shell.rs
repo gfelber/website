@@ -3,7 +3,9 @@ use log::{info, warn};
 use crate::app::App;
 use crate::cmds::{self, CMD_HISTORY, COMMANDS};
 use crate::termstate::TermState;
-use crate::{consts, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf};
+use crate::{
+  consts, filesystem, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf,
+};
 
 pub struct Shell {
   input_buffer: Vec<char>,
@@ -132,9 +134,9 @@ impl Shell {
   }
 
   fn autocomplete(&mut self, state: &mut TermState) {
-    if !self.input_buffer.iter().any(|x| x == &' ') {
+    let inputstr: String = self.input_buffer.iter().collect();
+    if !inputstr.contains(' ') {
       let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
-      let inputstr: String = self.input_buffer.iter().collect();
       let filtered_cmds: Vec<_> = cmds
         .iter()
         .filter(|cmd| cmd.starts_with(&inputstr))
@@ -159,6 +161,8 @@ impl Shell {
         write!("{}", inputstr);
       };
     }
+    let wsi = inputstr.rfind(' ').unwrap();
+    let search = &inputstr[wsi + 1..];
     // TODO: implement file autocompletion
   }
 

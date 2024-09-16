@@ -41,9 +41,11 @@ pub fn init(height: usize, width: usize, location: &str) {
   {
     if !term.init {
       init_log();
-      cmds_init();
       utils::set_panic_hook();
     }
+  }
+  if !term.init {
+    cmds_init();
   }
   info!("init");
   term.init(height, width, location);

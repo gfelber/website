@@ -123,8 +123,6 @@ pub fn cmds_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
   quote!(
     #(#attrs)*
     #vis #sig {
-      info!("register all commands");
-
       #(#register_statements)*
 
       let __result = {
