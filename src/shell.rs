@@ -111,7 +111,6 @@ impl App for Shell {
 
 impl Shell {
   pub fn new() -> Self {
-    cmds_init();
     Self {
       input_buffer: vec![],
       ansi_buffer: vec![],

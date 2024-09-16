@@ -5,6 +5,7 @@ use std::ops::DerefMut;
 use std::sync::Mutex;
 
 use cfg_if::cfg_if;
+use cmds::cmds_init;
 use lazy_static::lazy_static;
 use log::info;
 use wasm_bindgen::prelude::*;
@@ -40,6 +41,7 @@ pub fn init(height: usize, width: usize, location: &str) {
   {
     if !term.init {
       init_log();
+      cmds_init();
       utils::set_panic_hook();
     }
   }
