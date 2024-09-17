@@ -3,6 +3,7 @@ use log::{info, warn};
 use crate::app::App;
 use crate::cmds::{self, CMD_HISTORY, COMMANDS};
 use crate::termstate::TermState;
+use crate::utils::longest_common_prefix;
 use crate::{
   consts, filesystem, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf,
 };
@@ -134,12 +135,13 @@ impl Shell {
   }
 
   fn autocomplete(&mut self, state: &mut TermState) {
-    let inputstr: String = self.input_buffer.iter().collect();
+    let mut inputstr: String = self.input_buffer.iter().collect();
     if !inputstr.contains(' ') {
       let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
       let filtered_cmds: Vec<_> = cmds
         .iter()
         .filter(|cmd| cmd.starts_with(&inputstr))
+        .map(|cmd| cmd.to_owned())
         .collect();
       return if filtered_cmds.is_empty() {
       } else if filtered_cmds.len() == 1 {
@@ -149,14 +151,13 @@ impl Shell {
         state.cursor_x += cmd.len();
         self.input_buffer = cmd.chars().collect();
       } else {
-        write_solo!(
-          state,
-          filtered_cmds
-            .into_iter()
-            .map(|x| x.to_owned())
-            .collect::<Vec<_>>()
-            .join("\t")
-        );
+        let prefix = longest_common_prefix(filtered_cmds.clone());
+        info!("common prefix: {}", prefix);
+        write_solo!(state, filtered_cmds.join("\t"));
+        self
+          .input_buffer
+          .append(&mut prefix.trim_start_matches(&inputstr).chars().collect());
+        inputstr = self.input_buffer.iter().collect();
         state.cursor_x += inputstr.len();
         write!("{}", inputstr);
       };
@@ -198,6 +199,7 @@ impl Shell {
     let filtered_entries: Vec<_> = entries
       .iter()
       .filter(|entry| entry.starts_with(&filename))
+      .map(|entry| entry.to_owned())
       .collect();
 
     return if filtered_entries.is_empty() {
@@ -221,11 +223,24 @@ impl Shell {
       write_solo!(
         state,
         filtered_entries
+          .clone()
           .into_iter()
-          .map(|x| x.to_owned())
+          .map(|x| {
+            return if dir.get_file(x.to_string()).unwrap().is_dir {
+              format!("{}/", x)
+            } else {
+              x.to_string()
+            };
+          })
           .collect::<Vec<_>>()
           .join("\t")
       );
+      let prefix = longest_common_prefix(filtered_entries);
+      info!("common prefix: {}", prefix);
+      self
+        .input_buffer
+        .append(&mut prefix.trim_start_matches(filename).chars().collect());
+      inputstr = self.input_buffer.iter().collect();
       state.cursor_x += inputstr.len();
       write!("{}", inputstr);
     };
@@ -242,7 +257,7 @@ impl Shell {
     let cmd = cmd_args.next()?;
 
     return if let Some(command) = COMMANDS.lock().unwrap().get(cmd) {
-      command(state, cmdline.strip_suffix(' ').unwrap())
+      command(state, cmdline.trim_end_matches(' '))
     } else {
       state.cursor_y += 1;
       state.cursor_x = consts::PREFIX.len();

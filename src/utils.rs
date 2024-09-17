@@ -197,3 +197,33 @@ pub fn human_size(size: u64) -> String {
     format!("{:.1}G", size as f64 / GB as f64)
   }
 }
+
+pub fn longest_common_prefix(strs: Vec<&str>) -> String {
+  if strs.is_empty() {
+    return String::new();
+  }
+
+  // Start with the first string as the initial prefix
+  let mut prefix = strs[0].to_owned();
+
+  // Iterate through the rest of the strings
+  for s in strs.iter().skip(1) {
+    let mut new_prefix = String::new();
+
+    // Compare characters one by one
+    for (i, char) in s.chars().enumerate() {
+      if i < prefix.len() && char == prefix.chars().nth(i).unwrap() {
+        new_prefix.push(char);
+      } else {
+        break;
+      }
+    }
+
+    prefix = new_prefix;
+    if prefix.is_empty() {
+      break;
+    }
+  }
+
+  prefix
+}
