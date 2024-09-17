@@ -163,7 +163,72 @@ impl Shell {
     }
     let wsi = inputstr.rfind(' ').unwrap();
     let search = &inputstr[wsi + 1..];
+
+    let mut search_vals = search.rsplitn(2, '/');
+    let filename = search_vals.next().unwrap();
+    let crnt_path = search_vals.next().unwrap_or("");
+
+    info!("current path: {}", crnt_path);
+    info!("filename: {}", filename);
+
+    let path = if search.starts_with('/') {
+      crnt_path
+    } else if search.contains('/') {
+      &state.path.join(crnt_path)
+    } else {
+      state.path.filename
+    };
+
+    info!("autocomplete path: {}", path);
+
+    let resolved = utils::resolve_path(path);
+    let change = filesystem::ROOT.get_file(&resolved);
     // TODO: implement file autocompletion
+    if change.is_err() || !change.clone().unwrap().is_dir {
+      return;
+    }
+
+    let dir = if resolved.is_empty() {
+      &filesystem::ROOT
+    } else {
+      change.unwrap()
+    };
+    let entries: Vec<_> = dir.entries.keys().cloned().collect();
+
+    let filtered_entries: Vec<_> = entries
+      .iter()
+      .filter(|entry| entry.starts_with(&filename))
+      .collect();
+
+    return if filtered_entries.is_empty() {
+    } else if filtered_entries.len() == 1 {
+      let entry_name = filtered_entries.first().unwrap();
+      let entry = if dir.get_file(entry_name.to_string()).unwrap().is_dir {
+        format!("{}/", entry_name)
+      } else {
+        format!("{} ", entry_name)
+      };
+      info!("autcomplete entry: {}", entry);
+      let clear: String = consts::RETURN.repeat(filename.len());
+      write!("{}{}", clear, entry);
+      state.cursor_x += entry.len() - filename.len();
+      self
+        .input_buffer
+        .truncate(self.input_buffer.len().saturating_sub(filename.len()));
+      let mut entry_chars: Vec<char> = entry.chars().collect();
+      self.input_buffer.append(&mut entry_chars);
+    } else {
+      write_solo!(
+        state,
+        filtered_entries
+          .into_iter()
+          .map(|x| x.to_owned())
+          .collect::<Vec<_>>()
+          .join("\t")
+      );
+      state.cursor_x += inputstr.len();
+      write!("{}", inputstr);
+    };
   }
 
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
@@ -177,7 +242,7 @@ impl Shell {
     let cmd = cmd_args.next()?;
 
     return if let Some(command) = COMMANDS.lock().unwrap().get(cmd) {
-      command(state, cmdline)
+      command(state, cmdline.strip_suffix(' ').unwrap())
     } else {
       state.cursor_y += 1;
       state.cursor_x = consts::PREFIX.len();
