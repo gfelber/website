@@ -1,10 +1,10 @@
 use ansi_term::{Colour, Style};
 use log::info;
 
-use crate::{consts, filesystem, utils, write};
 use crate::app::App;
 use crate::shell::Shell;
 use crate::termstate::TermState;
+use crate::{consts, filesystem, utils, write};
 
 pub struct Less {
   ansi_buffer: Vec<char>,
@@ -44,9 +44,20 @@ impl App for Less {
         self.less_from(state, usize::MAX);
         None
       }
-      _ => {
+
+      // up
+      'k' => {
+        self.less_from(state, if self.line > 0 { self.line - 1 } else { 0 });
         None
       }
+
+      // down
+      'j' => {
+        self.less_from(state, self.line + 1);
+        None
+      }
+
+      _ => None,
     }
   }
 }
@@ -62,22 +73,38 @@ impl Less {
   }
   fn less_from(&mut self, state: &mut TermState, mut n: usize) {
     let lines_len = self.lines.len();
-    let bound: usize = if lines_len > state.height { lines_len - state.height } else { 0 };
+    let bound: usize = if lines_len > state.height {
+      lines_len - state.height
+    } else {
+      0
+    };
     info!("{}", format!("{} {}", n, bound));
     n = if n < bound { n } else { bound };
     info!("{}", format!("{}", n));
     self.line = n;
-    let m: usize = if n + state.height - 1 < lines_len { n + state.height - 1 } else { lines_len };
+    let m: usize = if n + state.height - 1 < lines_len {
+      n + state.height - 1
+    } else {
+      lines_len
+    };
     let head: Vec<&str> = self.lines[n..m].to_vec();
     let padding = state.height - head.len();
     let suffix = if n == bound {
-      Style::new().on(Colour::RGB(234, 255, 229))
+      Style::new()
+        .on(Colour::RGB(234, 255, 229))
         .fg(Colour::Black)
-        .paint("(END)").to_string()
+        .paint("(END)")
+        .to_string()
     } else {
       ":".to_string()
     };
-    write!("{}{}{}{}", consts::NEWLINE.repeat(padding), head.join(consts::NEWLINE), consts::NEWLINE, suffix);
+    write!(
+      "{}{}{}{}",
+      consts::NEWLINE.repeat(padding),
+      head.join(consts::NEWLINE),
+      consts::NEWLINE,
+      suffix
+    );
   }
 
   pub fn less(&mut self, state: &mut TermState, path_str: &str) -> Result<(), String> {
@@ -89,7 +116,7 @@ impl Less {
     if !resolved.is_empty() && change.is_ok() {
       let file = change?;
       if file.is_dir {
-        return Err(format!("read error: {} Is a directory", path_str))
+        return Err(format!("read error: {} Is a directory", path_str));
       }
       let _ = utils::change_url(&("/".to_string() + file.url));
       info!("{}", file.url);
@@ -118,7 +145,14 @@ impl Less {
       }
       consts::PAGE_UP => {
         self.ansi_clear();
-        self.less_from(state, if self.line > state.height { self.line - state.height } else { 0 })
+        self.less_from(
+          state,
+          if self.line > state.height {
+            self.line - state.height
+          } else {
+            0
+          },
+        )
       }
       consts::PAGE_DOWN => {
         self.ansi_clear();
