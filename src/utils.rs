@@ -193,6 +193,8 @@ pub fn human_size(size: u64) -> String {
     format!("{}", size)
   } else if size < MB {
     format!("{:.1}K", size as f64 / KB as f64)
+  } else if size < GB {
+    format!("{:.1}M", size as f64 / MB as f64)
   } else {
     format!("{:.1}G", size as f64 / GB as f64)
   }

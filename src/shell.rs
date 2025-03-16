@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use log::{info, warn};
 
 use crate::app::App;
@@ -27,6 +29,10 @@ impl App for Shell {
       }
       info!("{}", hex);
       self.ansi(state, &ansistr);
+      if self.ansi && ansistr.len() > 3 && input == '\x7e' {
+        warn!("invalid ansi sequence");
+        self.ansi_clear();
+      }
       return None;
     }
     match input {
@@ -113,10 +119,11 @@ impl App for Shell {
 
 impl Shell {
   pub fn new() -> Self {
+    let history = CMD_HISTORY.lock().unwrap();
     Self {
       input_buffer: vec![],
       ansi_buffer: vec![],
-      history_index: 0,
+      history_index: max(history.len(), 1) - 1,
       ansi: false,
       insert: false,
     }
@@ -332,6 +339,9 @@ impl Shell {
       consts::INSERT => {
         self.ansi_clear();
         self.insert = !self.insert;
+      }
+      consts::F1 | consts::F2 | consts::F3 | consts::F4 => {
+        self.ansi_clear();
       }
       _ => {}
     }

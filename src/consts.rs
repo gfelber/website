@@ -11,3 +11,8 @@ pub const INSERT: &str = "\x1b\x5b\x32\x7e";
 pub const RETURN: &str = "\x1b\x5b\x44 \x1b\x5b\x44";
 pub const NEWLINE: &str = "\n\r";
 pub const PREFIX: &str = "$ ";
+// Function Keys
+pub const F1: &str = "\x1b\x4f\x50";
+pub const F2: &str = "\x1b\x4f\x51";
+pub const F3: &str = "\x1b\x4f\x52";
+pub const F4: &str = "\x1b\x4f\x53";
