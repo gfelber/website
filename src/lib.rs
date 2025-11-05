@@ -57,6 +57,22 @@ pub fn readline(input: &str) {
   term.readline(input);
 }
 
+#[wasm_bindgen]
+pub fn scroll(lines: i32) {
+  let mut term = TERM.lock().unwrap();
+  term.scroll(lines);
+}
+
+#[wasm_bindgen]
+pub fn autocomplete() -> Vec<JsValue> {
+  let mut completions: Vec<JsValue> = Vec::new();
+  let mut term = TERM.lock().unwrap();
+  for completion in term.autocomplete() {
+    completions.push(JsValue::from_str(&completion));
+  }
+  completions
+}
+
 pub struct Term {
   app: Box<dyn app::App>,
   state: Box<termstate::TermState>,
@@ -107,10 +123,19 @@ impl Term {
     }
   }
 
+  pub fn autocomplete(&mut self) -> Vec<String> {
+    self.app.autocomplete(&self.state)
+  }
+
+  pub fn scroll(&mut self, lines: i32) {
+    info!("scroll {}", lines);
+    self.app.scroll(self.state.deref_mut(), lines);
+  }
+
   fn readchar(&mut self, input: char) {
     let x = self.state.cursor_x;
     let y = self.state.cursor_y;
-    info!("{:02x}", input as u32);
+    info!("input: {:02x}", input as u32);
     let app = self.app.readchar(self.state.deref_mut(), input);
     if app.is_some() {
       self.app = app.unwrap();

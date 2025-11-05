@@ -24,12 +24,14 @@
   "homepage": "https://github.com/gfelber/website",
   "dependencies": {
     "@fontsource-variable/source-code-pro": "^5.0.9",
-    "wasm-backend": "file:../pkg",
-    "xterm": "^5.3.0",
-    "xterm-addon-canvas": "^0.5.0",
-    "xterm-addon-fit": "^0.8.0",
-    "xterm-addon-web-links": "^0.9.0",
-    "xterm-addon-webgl": "^0.16.0"
+    "@xterm/addon-canvas": "^0.7.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "glob": "^11.0.3",
+    "rimraf": "^6.1.0",
+    "wasm-backend": "file:../pkg"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^11.0.0",

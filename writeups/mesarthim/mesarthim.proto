@@ -1,0 +1,45 @@
+```proto
+syntax = "proto3";
+package main;
+
+message Frame_Header {
+  int32 size = 1;
+}
+
+message Frame {
+  int32 size  = 1;
+  Commands cmd = 2;
+  Status status = 3;
+}
+
+enum Commands {
+  NONE = 0;
+  PING = 1;
+  REBOOT = 2;
+  BOOST_ENABLE = 3;
+  BOOST_DISABLE = 4;
+  STATUS = 5;
+  PONG = 6;
+  SET_NAME = 7;
+  ERROR = -1;
+}
+
+message Status {
+  string name = 1;
+  int32 time = 2;
+  int32 uptime = 3;
+  int32 signal = 4;
+  int32 latency = 5;
+  bool boost = 6;
+  Telemetry telemetry = 7;
+}
+
+message Telemetry {
+  float latitude = 1;
+  float longitude = 2;
+  int32 altitude = 3;
+  float velocity = 4;
+  float inclination = 5;
+  float period = 6;
+}
+```

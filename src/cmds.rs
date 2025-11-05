@@ -104,38 +104,52 @@ struct LessArgs {
 
 type CommandFn = fn(&mut TermState, &str) -> Option<Box<dyn App>>;
 
+#[derive(Clone)]
+#[derive(PartialEq)]
+pub enum MobileType {
+  NotMobile,
+  Mobile,
+  MobileArg
+}
+
+#[derive(Clone)]
+pub struct CmdInfo {
+  pub func: CommandFn,
+  pub help: &'static str,
+  pub mobile: MobileType,
+}
+
 lazy_static! {
-  pub static ref COMMANDS: Mutex<HashMap<&'static str, CommandFn>> = Mutex::new(HashMap::new());
-  pub static ref HELPS: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
+  pub static ref COMMANDS: Mutex<HashMap<&'static str, CmdInfo>> = Mutex::new(HashMap::new());
   pub static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
 }
 
-#[shell_cmd(COMMANDS, HELPS, "clear\t\tclear terminal")]
+#[shell_cmd(COMMANDS, "clear\t\tclear terminal", MobileType::Mobile)]
 pub fn clear(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   clear!(state);
   prefix!(state);
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "pwd\t\tprint current directory (or just check URL)")]
+#[shell_cmd(COMMANDS, "pwd\t\tprint current directory (or just check URL)")]
 pub fn pwd(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   write_solo!(state, "/".to_string() + &state.path.url);
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "whoami\t\tprint current user")]
+#[shell_cmd(COMMANDS, "whoami\t\tprint current user", MobileType::Mobile)]
 pub fn whoami(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "whereis\t\tLocate where stuff is")]
+#[shell_cmd(COMMANDS, "whereis\t\tLocate where stuff is", MobileType::Mobile)]
 pub fn whereis(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   write_solo!(state, "https://github.com/gfelber/website");
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "echo\tMSG\techo message")]
+#[shell_cmd(COMMANDS, "echo\tMSG\techo message")]
 pub fn echo(state: &mut TermState, args: &str) -> Option<Box<dyn App>> {
   let mut cmd_args = args.splitn(2, ' ');
   _ = cmd_args.next();
@@ -143,7 +157,7 @@ pub fn echo(state: &mut TermState, args: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "cat\tFILE\tprint file to stdout")]
+#[shell_cmd(COMMANDS, "cat\tFILE\tprint file to stdout")]
 pub fn cat(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: CatArgs = parse_args!(state, CatArgs::try_parse_from(cmdline.split(" ")), None);
   let path_str = args.file;
@@ -174,7 +188,7 @@ pub fn cat(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "less\tFILE\tview file in screen")]
+#[shell_cmd(COMMANDS, "less\tFILE\tview file in screen", MobileType::MobileArg)]
 pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
   let mut less = Less::new();
@@ -190,7 +204,17 @@ pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   }
 }
 
-#[shell_cmd(COMMANDS, HELPS, "ls\t[PATH]\tlist directory contents")]
+#[shell_cmd(COMMANDS, "ll\t\tlist directory contents in long format")]
+pub fn ll(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+  let out = ls_rec(state, &format!("ls -lh {}", cmdline.trim_start_matches("ll")));
+  write!("{}", out);
+  if !out.is_empty() {
+    prefix!(state);
+  }
+  None
+}
+
+#[shell_cmd(COMMANDS, "ls\t[PATH]\tlist directory contents")]
 pub fn ls(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let out = ls_rec(state, cmdline);
   write!("{}", out);
@@ -330,7 +354,7 @@ pub fn ls_rec(state: &mut TermState, cmdline: &str) -> String {
   )
 }
 
-#[shell_cmd(COMMANDS, HELPS, "cd\t[DIR]\tchange directory")]
+#[shell_cmd(COMMANDS, "cd\t[DIR]\tchange directory", MobileType::Mobile)]
 pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")), None);
   let path_str = args.dir.unwrap_or("/".to_string());
@@ -353,7 +377,7 @@ pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "history\t\tprint cmd history")]
+#[shell_cmd(COMMANDS, "history\t\tprint cmd history")]
 fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   let history = CMD_HISTORY.lock().unwrap();
   new!(state);
@@ -364,10 +388,12 @@ fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, HELPS, "help\t\tprint this message")]
+#[shell_cmd(COMMANDS, "help\t\tprint this message")]
 pub fn help(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  // TODO: generate from macro data
-  write_solo!(state, HELPS.lock().unwrap().join(consts::NEWLINE));
+  let commands = COMMANDS.lock().unwrap();
+  let mut help_msgs: Vec<&str> = commands.values().map(|cmd_info| cmd_info.help).collect();
+  help_msgs.sort();
+  write_solo!(state, help_msgs.join(consts::NEWLINE));
   None
 }
 

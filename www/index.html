@@ -1,16 +1,29 @@
 <!doctype html>
 <html>
   <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <script src="/index.js"></script>
     <link rel="stylesheet" type="text/css" href="/main.css" />
     <link rel="stylesheet" type="text/css" href="/font.css" />
     <link rel="stylesheet" type="text/css" href="/xterm.css" />
   </head>
   <body>
-    <div id="terminal">$</div>
+
     <noscript>
       This page contains webassembly and javascript content, please enable
       javascript in your browser.
     </noscript>
+
+    <div id="terminal">$</div>
+
+    <div id="command-suggestions" class="command-suggestions">
+      <button class="cmd-btn" data-cmd="less">clear</button>
+      <button class="cmd-btn" data-cmd="whereis">clear</button>
+      <button class="cmd-btn" data-cmd="cd">clear</button>
+      <button class="cmd-btn" data-cmd="whoami">clear</button>
+      <button class="cmd-btn" data-cmd="clear">clear</button>
+    </div>
+
   </body>
 </html>

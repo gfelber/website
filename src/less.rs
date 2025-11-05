@@ -60,6 +60,19 @@ impl App for Less {
       _ => None,
     }
   }
+
+  fn scroll(&mut self, state: &mut TermState, lines_i32: i32) {
+    let lines = (-lines_i32).abs() as usize;
+    if lines_i32 > 0 {
+      self.less_from(state, if self.line > lines { self.line - lines } else { 0 });
+    } else {
+      self.less_from(state, self.line + lines);
+    }
+  }
+
+  fn autocomplete(&self, _state: &TermState) -> Vec<String> {
+    vec!['q'.to_string(), 'g'.to_string(), 'G'.to_string()]
+  }
 }
 
 impl Less {

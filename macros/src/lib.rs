@@ -7,6 +7,7 @@ use syn::{
   parse_macro_input,
   punctuated::Punctuated,
   Expr, ExprLit, ItemFn, Lit, Token,
+  parse_quote
 };
 
 // A static mutable global map to keep track of registered commands
@@ -14,35 +15,46 @@ static REGISTERED_COMMANDS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(V
 
 struct ShellCmdArgs {
   commands: Expr,
-  helps: Expr,
   help_msg: String,
+  mobile: Expr,
 }
 
 impl Parse for ShellCmdArgs {
   fn parse(input: ParseStream) -> syn::Result<Self> {
     let args: Punctuated<Expr, Token![,]> = input.parse_terminated(Expr::parse, Token![,])?;
 
+    if args.len() < 2 {
+      return Err(syn::Error::new(
+        input.span(),
+        "expected at least 2 arguments: COMMANDS, help_message",
+      ));
+    }
+
     let commands = args[0].clone();
 
-    let helps = args[1].clone();
-
-    let other = if let Expr::Lit(ExprLit {
+    let help_msg = if let Expr::Lit(ExprLit {
       lit: Lit::Str(lit_str),
       ..
-    }) = &args[2]
+    }) = &args[1]
     {
       lit_str.value()
     } else {
       return Err(syn::Error::new_spanned(
-        &args[2],
+        &args[1],
         "expected a string literal",
       ));
     };
 
+    let mobile: Expr = if args.len() > 2 {
+      args[2].clone()
+    } else {
+      parse_quote!(MobileType::NotMobile)
+    };
+
     Ok(ShellCmdArgs {
       commands,
-      helps,
-      help_msg: other,
+      help_msg,
+      mobile,
     })
   }
 }
@@ -72,8 +84,8 @@ pub fn shell_cmd(attr: TokenStream, item: TokenStream) -> TokenStream {
   let register_function_name = format_ident!("__register_{}", function_name);
 
   let commands = args.commands;
-  let helps = args.helps;
   let help_msg = args.help_msg;
+  let mobile = args.mobile;
 
   // Reconstruct the function as output using parsed input
   quote!(
@@ -87,8 +99,11 @@ pub fn shell_cmd(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     pub fn #register_function_name() {
       info!("registering {}", #function_name);
-      #commands.lock().unwrap().insert(#function_name, #function_identifier);
-      #helps.lock().unwrap().push(#help_msg);
+      #commands.lock().unwrap().insert(#function_name, CmdInfo {
+        func: #function_identifier,
+        help: #help_msg,
+        mobile: #mobile,
+      });
     }
 
   )

@@ -14,7 +14,7 @@ module.exports = {
     new CopyPlugin({
       patterns: [
         { from: "main.css", to: "main.css" },
-        { from: "node_modules/xterm/css/xterm.css", to: "xterm.css" },
+        { from: "node_modules/@xterm/xterm/css/xterm.css", to: "xterm.css" },
         {
           from: "node_modules/@fontsource-variable/source-code-pro/index.css",
           to: "font.css",

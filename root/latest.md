@@ -1,1 +1,1 @@
-writeups/openECSC24_round1_rovermaster.md
+writeups/ctrl_space_aries.md

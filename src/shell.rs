@@ -3,7 +3,7 @@ use std::cmp::max;
 use log::{info, warn};
 
 use crate::app::App;
-use crate::cmds::{self, CMD_HISTORY, COMMANDS};
+use crate::cmds::{self, CMD_HISTORY, COMMANDS, MobileType};
 use crate::termstate::TermState;
 use crate::utils::longest_common_prefix;
 use crate::{
@@ -115,7 +115,15 @@ impl App for Shell {
       }
     }
   }
+
+  fn scroll(&mut self, _state: &mut TermState, _lines: i32) {}
+
+  fn autocomplete(&self, state: &TermState) -> Vec<String> {
+    self.get_autocomplete_options(state, true)
+  }
 }
+
+
 
 impl Shell {
   pub fn new() -> Self {
@@ -139,6 +147,86 @@ impl Shell {
     let clear: String = consts::RETURN.repeat(self.input_buffer.len());
     state.cursor_x = consts::PREFIX.len();
     write_buf!("{}{}", right, clear);
+  }
+
+  pub fn get_autocomplete_options(&self, state: &TermState, mobile: bool) -> Vec<String> {
+    let inputstr: String = self.input_buffer.iter().collect();
+
+    // Command autocompletion (no space in input)
+    if !inputstr.contains(' ') {
+      let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
+      let filtered_cmds: Vec<_> = cmds
+        .iter()
+        .filter(|cmd| cmd.starts_with(&inputstr) && (!mobile || COMMANDS.lock().unwrap()[**cmd].mobile != MobileType::NotMobile))
+        .map(|cmd| cmd.to_string())
+        .collect();
+      return filtered_cmds;
+    }
+
+    let cmd = inputstr.split(' ').next().unwrap();
+    let cmd_info = {
+      let commands = COMMANDS.lock().unwrap();
+      commands.get(cmd).cloned()
+    };
+
+    if cmd_info.is_none() {
+      return vec![];
+    }
+    let cmd_info = cmd_info.unwrap();
+
+    if mobile && cmd_info.mobile == MobileType::Mobile {
+      return vec![];
+    }
+
+    if inputstr.split(' ').count() - 1 > 1 {
+      return vec![];
+    }
+
+    // File/directory autocompletion
+    let wsi = match inputstr.rfind(' ') {
+      Some(idx) => idx,
+      None => return vec![],
+    };
+    let search = &inputstr[wsi + 1..];
+
+    let mut search_vals = search.rsplitn(2, '/');
+    let filename = search_vals.next().unwrap();
+    let crnt_path = search_vals.next().unwrap_or("");
+
+    let path = if search.starts_with('/') {
+      crnt_path
+    } else if search.contains('/') {
+      &state.path.join(crnt_path)
+    } else {
+      state.path.filename
+    };
+
+    let resolved = utils::resolve_path(path);
+    let change = filesystem::ROOT.get_file(&resolved);
+    if change.is_err() || !change.clone().unwrap().is_dir {
+      return vec![];
+    }
+
+    let dir = if resolved.is_empty() {
+      &filesystem::ROOT
+    } else {
+      change.unwrap()
+    };
+    let entries: Vec<_> = dir.entries.keys().cloned().collect();
+
+    let filtered_entries: Vec<_> = entries
+      .iter()
+      .filter(|entry| entry.starts_with(&filename))
+      .map(|entry| {
+        if dir.get_file(entry.to_string()).unwrap().is_dir {
+          format!("{}/", entry)
+        } else {
+          entry.to_string()
+        }
+      })
+      .collect();
+
+    filtered_entries
   }
 
   fn autocomplete(&mut self, state: &mut TermState) {
@@ -184,14 +272,13 @@ impl Shell {
     } else if search.contains('/') {
       &state.path.join(crnt_path)
     } else {
-      state.path.filename
+      state.path.url
     };
 
     info!("autocomplete path: {}", path);
 
     let resolved = utils::resolve_path(path);
     let change = filesystem::ROOT.get_file(&resolved);
-    // TODO: implement file autocompletion
     if change.is_err() || !change.clone().unwrap().is_dir {
       return;
     }
@@ -263,8 +350,13 @@ impl Shell {
     let mut cmd_args = cmdline.split(" ");
     let cmd = cmd_args.next()?;
 
-    return if let Some(command) = COMMANDS.lock().unwrap().get(cmd) {
-      command(state, cmdline.trim_end_matches(' '))
+    let cmd_info = {
+      let commands = COMMANDS.lock().unwrap();
+      commands.get(cmd).cloned()
+    };
+
+    return if let Some(cmd_info) = cmd_info {
+      (cmd_info.func)(state, cmdline.trim_end_matches(' '))
     } else {
       state.cursor_y += 1;
       state.cursor_x = consts::PREFIX.len();

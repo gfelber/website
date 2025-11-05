@@ -1,5 +1,5 @@
 #!/bin/sh
 FILE=$1
 # teeo is just `tee output.log`
-PAGER=teeo script -efqO /dev/null -c "glow $FILE -s dark -w 100 -p"
+PAGER=teeo script -efqO /dev/null -c "glow $FILE -s dark -w 59 -p"
 mv output.log root/$FILE
