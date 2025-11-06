@@ -206,7 +206,7 @@ pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
 
 #[shell_cmd(COMMANDS, "ll\t\tlist directory contents in long format")]
 pub fn ll(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
-  let out = ls_rec(state, &format!("ls -lh {}", cmdline.trim_start_matches("ll")));
+  let out = ls_rec(state, &format!("ls -lh{}", cmdline.trim_start_matches("ll")));
   write!("{}", out);
   if !out.is_empty() {
     prefix!(state);
