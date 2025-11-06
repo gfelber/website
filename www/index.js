@@ -4,6 +4,25 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { CanvasAddon } from "@xterm/addon-canvas";
 
+// Detect Twitter/X.com redirect and force reload once
+(function() {
+  const referrer = document.referrer.toLowerCase();
+  const isFromTwitter = referrer.includes('twitter.com') || 
+                        referrer.includes('t.co') || 
+                        referrer.includes('x.com');
+  
+  // Check if we've already reloaded via URL parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasReloaded = urlParams.has('_r');
+  
+  if (isFromTwitter && !hasReloaded) {
+    // Add reload parameter and reload
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('_r', '1');
+    window.location.href = newUrl.toString();
+  }
+})();
+
 // Detect mobile devices
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                  (window.navigator.userAgentData && window.navigator.userAgentData.mobile) ||
