@@ -75,23 +75,22 @@ Finally we have the source code for the kernel module we will have to exploi.
 
 It seem to implement some type of task queue through a new `/proc/sheratan` interface that works like this:
 ```
-
- ┌──────────┐      ┌────────────────┐    ┌───────────────────┐
- │  Hamal   │      │    Sheratan    │    │  Mesarthim Client │
- │ (Client) │      │ (Intermediate) │    │      (Worker)     │
- └────┬─────┘      └───────┬────────┘    └─────────┬─────────┘
-      │                    │                       │
-      │ PUSH CMD           │                       │
-      │ ─────────────────► │               POP CMD │
-      │                    │ ◄──────────────────── │
-      │                    │ RETURN CMD            │
-      │                    │ ────────────────────► │
-      │                    │                       │ │ DO
-      │                    │                       │ │ CMD
-      │                    │              CMD DONE │ ▼
-      │       CMD FINISHED │ ◄──────────────────── │
-      │ ◄───────────────── │ ────────────────────► │
-      │                    │                       │
+┌──────────┐ ┌────────────────┐ ┌───────────────────┐
+│  Hamal   │ │    Sheratan    │ │  Mesarthim Client │
+│ (Client) │ │ (Intermediate) │ │      (Worker)     │
+└────┬─────┘ └───────┬────────┘ └─────────┬─────────┘
+     │               │                    │
+     │ PUSH CMD      │                    │
+     │ ────────────► │            POP CMD │
+     │               │ ◄───────────────── │
+     │               │ RETURN CMD         │
+     │               │ ─────────────────► │
+     │               │                    │ │ DO
+     │               │                    │ │ CMD
+     │               │           CMD DONE │ ▼
+     │  CMD FINISHED │ ◄───────────────── │
+     │ ◄──────────── │ ─────────────────► │
+     │               │                    │
 
 ```
 
@@ -163,24 +162,24 @@ But isn't this race condition super tight? Well not really, this is where we can
 Our Proof of Concept will do sth like this:
 
 ```
- ┌──────────┐      ┌──────────┐      ┌──────────┐
- │  victim  │      │ Sheratan │      │ attacker │
- └────┬─────┘      └────┬─────┘      └────┬─────┘
-      │                 │        PUSH CMD │
-      │ POP CMD         │ ◄────────────── │
-      │ ◄────────────── │                 │
-      │ DONE CMD        │ complete        │
-      │ ──────────────► │ ──────────────► │
-      │                 │        DONE CMD │
-      │        Dangling │ ◄────────────── │
-      │         Pointer │ KFREE           │
-      │                 │ ──────────────► │
-      │                 │                 │ ─┐
-      │                 │                 │  │ REALLOC
-      │                 │                 │  │ HEAP
-      │   DOUBLE KFREE  │                 │ ─┘
-      │ ◄────────────── │                 │
-      │                 │                 │
+ ┌──────────┐ ┌──────────┐ ┌──────────┐
+ │  victim  │ │ Sheratan │ │ attacker │
+ └────┬─────┘ └────┬─────┘ └────┬─────┘
+      │            │   PUSH CMD │
+      │ POP CMD    │ ◄───────── │
+      │ ◄───────── │            │
+      │ DONE CMD   │ complete   │
+      │ ─────────► │ ─────────► │
+      │            │   DONE CMD │
+      │   DANGLING │ ◄───────── │
+      │    POINTER │ KFREE      │
+      │            │ ─────────► │
+      │            │            │ ─┐
+      │            │            │  │ REALLOC
+      │     DOUBLE │            │  │ HEAP
+      │      KFREE │            │ ─┘
+      │ ◄───────── │            │
+      │            │            │
 
 ```
 
