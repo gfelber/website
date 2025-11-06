@@ -71,7 +71,7 @@ impl App for Less {
   }
 
   fn autocomplete(&self, _state: &TermState) -> Vec<String> {
-    vec!['q'.to_string(), 'g'.to_string(), 'G'.to_string()]
+    vec!['q'.to_string()]
   }
 }
 

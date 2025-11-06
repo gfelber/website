@@ -156,18 +156,10 @@ function updateAutocomplete() {
       // Smart autocomplete: empty list means auto-submit
       term.input('\r');
       // Show default commands after submit
-      suggestionsBar.innerHTML = `
-        <button class="cmd-btn" data-cmd="help">help</button>
-        <button class="cmd-btn" data-cmd="ls">ls</button>
-        <button class="cmd-btn" data-cmd="cd ">cd</button>
-        <button class="cmd-btn" data-cmd="cat ">cat</button>
-        <button class="cmd-btn" data-cmd="less ">less</button>
-        <button class="cmd-btn" data-cmd="clear">clear</button>
-      `;
     } else {
       // Show autocomplete options
       suggestionsBar.innerHTML = options
-        .slice(0, 10) // Limit to 10 options
+        .sort()
         .map(opt => `<button class="cmd-btn autocomplete-option" data-complete="${opt}">${opt}</button>`)
         .join('');
     }
