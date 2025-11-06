@@ -271,31 +271,14 @@ var loaded =
   document.readyState === "complete" || document.readyState === "interactive";
 document.addEventListener("DOMContentLoaded", () => {
   loaded = true;
-  if (font && !initialized) {
-    initialized = true;
-    init();
-  }
+  if (font) init();
 });
 
 var font = false;
-var initialized = false;
-
 document.fonts.ready.then(() => {
   font = true;
-  if (loaded && !initialized) {
-    initialized = true;
-    init();
-  }
+  if (loaded) init();
 });
-
-// Fallback timeout in case fonts don't load (e.g., on Twitter/X.com previews)
-setTimeout(() => {
-  if (loaded && !initialized) {
-    console.warn('Fonts did not load in time, initializing anyway');
-    initialized = true;
-    init();
-  }
-}, 2000); // 2 second timeout
 
 addEventListener("resize", () => {
   fitAddon.fit();
