@@ -4,11 +4,11 @@ Version: 03-11-2025
 # ARIES - Sheratan
 
 
-Status: TBD
+Status: Unsolved
 
 Category: PWN, KERNEL
 
-Points: TBD
+Points: 0 Solves
 
 Description:
 > Our industry-leading Sheratan ground station enables seamless communication with your orbital assets.
@@ -53,9 +53,9 @@ the *run.sh* script is a bit more interesting. We startup a virtual qemu arm64 V
 
 [*run.sh*](https://gfelber.dev/writeups/res/sheratan/run.sh)
 
-The *run.sh* actually mounts two filesystems and initramfs `rootfs.cpio.gz` and a main filesystem `hamal.ext4` (which is basically the docker container for the [Hamal](https://gfelber.dev/writeups/res/ctrl_space_hamal.md) challenge).
+The *run.sh* actually mounts two filesystems and initramfs `rootfs.cpio.gz` and a main filesystem `hamal.ext4` (which is basically the docker container for the [Hamal](https://gfelber.dev/writeups/ctrl_space_hamal.md) challenge).
 
-extracting the files from the *rootfs.cpio.gz* (e.g. using this [script](https://github.com/gfelber/how2keap/blob/main/scripts/decompress.sh), we have two interesting files:
+extracting the files from the *rootfs.cpio.gz* (e.g. using this [script](https://github.com/gfelber/how2keap/blob/main/scripts/decompress.sh) , we have two interesting files:
 
 *init* is the first script executed after boot the important things are that:
 + loads the kernel module *sheratan.ko*
@@ -66,11 +66,11 @@ extracting the files from the *rootfs.cpio.gz* (e.g. using this [script](https:/
 
 [*init*](https://gfelber.dev/writeups/res/sheratan/init)
 
-also lets take a quick look at the *nsjail.conf*. Notably we create a new network namespace (but have access to our internet interface eth0). Even though the filesystem is read only, we mount some tmpfs directories, which allow us to write a binary somewhere.
+also lets take a quick look at the *nsjail.cfg*. Notably we create a new network namespace (but have access to our internet interface eth0). Even though the filesystem is read only, we mount some tmpfs directories, which allow us to write a binary somewhere.
 
-[*nsjail.conf*](https://gfelber.dev/writeups/res/sheratan/nsjail.conf)
+[*nsjail.cfg*](https://gfelber.dev/writeups/res/sheratan/nsjail.cfg)
 
-Finally we have the source code for the kernel module we will have to exploi.
+Finally we have the source code for the kernel module we will have to exploit.
 
 [*sheratan.c*](https://gfelber.dev/writeups/res/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/res/sheratan/sheratan.h)
 
@@ -89,7 +89,8 @@ It seem to implement some type of task queue through a new `/proc/sheratan` inte
      │               │                    │ │ DO
      │               │                    │ │ CMD
      │               │           CMD DONE │ ▼
-     │  CMD FINISHED │ ◄───────────────── │
+     │               │ ◄───────────────── │
+     │  CMD FINISHED │ complete           │
      │ ◄──────────── │ ─────────────────► │
      │               │                    │
 
@@ -341,7 +342,7 @@ void flush_tlb() {
 
 ```
 
-or a way better and faster technique used by [leave](https://github.com/manuele-pandolfi) (he also sometimes publishes cool blog posts [here](https://kqx.io/))
+or a way better and faster technique used by [leave](https://github.com/manuele-pandolfi) (he also sometimes publishes cool blog posts [here](https://kqx.io/) )
 
 ```c
 void flush_tlb() {
@@ -356,9 +357,9 @@ void flush_tlb() {
 }
 ```
 
-One very interesting thing about the Dirty Pagetable on ARM64 is that it actually doesn't have any physical KASLR, so we can just overwrite and memory from the kernel image directly. Actually the day before the CTF start Google Project Zero made a blog post about this behaviour (among other things): [Defeating KASLR by Doing Nothing at All](https://googleprojectzero.blogspot.com/2025/11/defeating-kaslr-by-doing-nothing-at-all.html). I guess i didn't expect to by snipped by them, but it happens `¯\_(ツ)_/¯`.
+One very interesting thing about the Dirty Pagetable on ARM64 is that it actually doesn't have any physical KASLR, so we can just overwrite and memory from the kernel image directly. Actually the day before the CTF start Google Project Zero made a blog post about this behaviour (among other things): [Defeating KASLR by Doing Nothing at All](https://googleprojectzero.blogspot.com/2025/11/defeating-kaslr-by-doing-nothing-at-all.html) . I guess i didn't expect to by snipped by them, but it happens `¯\_(ツ)_/¯`.
 
-Privilege Escalation from here is straight forward, we could either write our own ring 0 shellcode, overwrite modprobe OR overwrite core_pattern which i actually got from this kernel CTF submission: [CVE-2024-36972](https://github.com/st424204/security-research/tree/fa3bed7298d85865bd1109fc278b982dc725cf28/pocs/linux/kernelctf/CVE-2024-36972_lts_cos).
+Privilege Escalation from here is straight forward, we could either write our own ring 0 shellcode, overwrite modprobe OR overwrite core\_pattern which i actually got from this kernel CTF submission: [CVE-2024-36972](https://github.com/google/security-research/tree/master/pocs/linux/kernelctf/CVE-2024-36972_lts_cos) .
 
 This basically gives us an easy way to execute our binary as a privileged process outside the namespace and get the flag.
 

@@ -4,11 +4,11 @@ Version: 03-11-2025
 # ARIES
 
 
-Status: TBD
+Status: Unsolved
 
 Category: PWN, SPACE, KERNEL, FULL CHAIN
 
-Points: TBD
+Points: 500 (0 Solves)
 
 Description:
 
@@ -81,10 +81,10 @@ aries/
 
 These are basically the same files we encountered during the other challenges, except for some differences.
 
-We have one new files *proxy.py*, this service listens on port 5000 and emulates the only one connection per request behaviour of the satellite challenge. On the remote this will also be different and actually upload the payload to the satellite and return its response. 
+We have one new file *proxy.py*, this service listens on port 5000 and emulates the only one connection per request behaviour of the satellite challenge. On the remote this will also be different and actually upload the payload to the satellite and returns its response. 
 [*proxy.py*](https://gfelber.dev/writeups/res/aries/proxy.py) 
 
-The files that changes are the *Dockerfile* and *init* inside the *rootfs.cpio.gz*. Notably Dockerfile now adds a tap interface (eth1 inside the vm) and setups firewall rules. It also starts the proxy. This will force use to do the Privilege Escalation in Sheratan, as otherwise we won't be able to communicate with the proxy and reach the final part: Mesarthim.
+The files that changed are the *Dockerfile* and *init* inside the *rootfs.cpio.gz*. Notably Dockerfile now adds a tap interface (eth1 inside the vm) and setups firewall rules. It also starts the proxy. This will force use to do the Privilege Escalation in Sheratan, as otherwise we won't be able to communicate with the proxy and reach the final part: Mesarthim.
 
 [*Dockerfile*](https://gfelber.dev/writeups/res/aries/Dockerfile) [*init*](https://gfelber.dev/writeups/res/aries/init)
 

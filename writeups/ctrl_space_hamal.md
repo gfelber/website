@@ -3,11 +3,11 @@ Version: 03-11-2025
 
 # ARIES - Hamal
 
-Status: TBD
+Status: Unsolved
 
 Category: PWN
 
-Points: TBD
+Points: 370 (2 Solves)
 
 Description:
 
