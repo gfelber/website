@@ -55,7 +55,7 @@ Lets go over the most important ones:
 
 First let's look at the *Dockerfile* and it is rather simple we execute *run.sh* in a very simple container `/opt/mesarthim`. The run.sh script simply store the flag in the `/opt/mesarthim` and runs `exec ./mesarthim_deploy < /files/input > /files/output`.
 
-[*Dockerfile*](https://gfelber.dev/writeups/res/mesarthim/Dockerfile) [*run.sh*](https://gfelber.dev/writeups/mesarthim/run.sh)
+[*Dockerfile*](https://gfelber.dev/writeups/res/mesarthim/Dockerfile) [*run.sh*](https://gfelber.dev/writeups/res/mesarthim/run.sh)
 
 Ok next let's take a look at the sources files for *mesarthim_deploy.c* first. It basically just executes `mesarthim`, reads the input file `/files/input` from stdin, sends it to `mesarthim` and writes the output to stdout aka `/files/output`. Because this is a space challenge we will have to send our entire exploit through one input and only receive one output. This means that we won't be able to get any ASLR leaks (that are meaningful).
 
@@ -63,7 +63,7 @@ Ok next let's take a look at the sources files for *mesarthim_deploy.c* first. I
 
 The actual challenge seems to be *mesarthim.c*, which implements a simple TCP server which accepts frames, that defined through *mesarthim.proto*. It executes the corresponding command and finally sends a response. Also multiple frames can be send through one connection.
 
-[*mesarthim.c*](https://gfelber.dev/writeups/res/mesarthim/mesarthim.c) [*mesarthim.proto*](https://gfelber.dev/writeups/mesarthim/mesarthim.proto)
+[*mesarthim.c*](https://gfelber.dev/writeups/res/mesarthim/mesarthim.c) [*mesarthim.proto*](https://gfelber.dev/writeups/res/mesarthim/mesarthim.proto)
 
 Also one important thing to note is that the binary actually is not a PIE (Position Independent Executable) and static which should make exploitation easier. 
 

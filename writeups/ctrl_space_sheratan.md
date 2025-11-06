@@ -72,7 +72,7 @@ also lets take a quick look at the *nsjail.conf*. Notably we create a new networ
 
 Finally we have the source code for the kernel module we will have to exploi.
 
-[*sheratan.c*](https://gfelber.dev/writeups/res/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/sheratan/sheratan.h)
+[*sheratan.c*](https://gfelber.dev/writeups/res/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/res/sheratan/sheratan.h)
 
 It seem to implement some type of task queue through a new `/proc/sheratan` interface that works like this:
 ```
@@ -266,7 +266,7 @@ void io_pages_unmap(void *ptr, struct page ***pages, unsigned short *npages,
 
 In order to make exploitation easier I wrote some helper functions. Some additional PoC's will also be provided on my kernel exploitation repo [how2keap](https://github.com/gfelber/how2keap) at a later time.
 
-[*io_uring.c*](https://gfelber.dev/writeups/res/sheratan/io_uring.c) [*io_uring.h*](https://gfelber.dev/writeups/sheratan/io_uring.h)
+[*io_uring.c*](https://gfelber.dev/writeups/res/sheratan/io_uring.c) [*io_uring.h*](https://gfelber.dev/writeups/res/sheratan/io_uring.h)
 
 Using this gadget we will now do the following steps:
 1. reclaim the heap chunk with provided buffers (bgid 0)

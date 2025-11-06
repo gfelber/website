@@ -86,7 +86,7 @@ We have one new files *proxy.py*, this service listens on port 5000 and emulates
 
 The files that changes are the *Dockerfile* and *init* inside the *rootfs.cpio.gz*. Notably Dockerfile now adds a tap interface (eth1 inside the vm) and setups firewall rules. It also starts the proxy. This will force use to do the Privilege Escalation in Sheratan, as otherwise we won't be able to communicate with the proxy and reach the final part: Mesarthim.
 
-[*Dockerfile*](https://gfelber.dev/writeups/res/aries/Dockerfile) [*init*](https://gfelber.dev/writeups/aries/init)
+[*Dockerfile*](https://gfelber.dev/writeups/res/aries/Dockerfile) [*init*](https://gfelber.dev/writeups/res/aries/init)
 
 Also it is important to note that we will now have to exploit Hamal on a read only filesystem. This doesn't break our RCE exploit though.
 
@@ -163,6 +163,6 @@ And our Mesarthim exploit doesn't require any changes!
 
 ## Final
 
-[*exploit.py*](https://gfelber.dev/writeups/res/aries/exploit.py) [*pwn.c*](https://gfelber.dev/writeups/aries/pwn.c)
+[*exploit.py*](https://gfelber.dev/writeups/res/aries/exploit.py) [*pwn.c*](https://gfelber.dev/writeups/res/aries/pwn.c)
 
 Flag: `space{s1c_1tur_4d_4stra_0a7470e22b1b824d}`

@@ -1,6 +1,6 @@
 import * as wasm from "wasm-backend";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
+import { MultiLineWebLinksAddon } from "./MultiLineWebLinksAddon.js";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { CanvasAddon } from "@xterm/addon-canvas";
 
@@ -58,7 +58,7 @@ var term = wasm.term({
 window.term = term;
 
 const fitAddon = new FitAddon();
-term.loadAddon(new WebLinksAddon());
+term.loadAddon(new MultiLineWebLinksAddon());
 term.loadAddon(new CanvasAddon());
 term.loadAddon(new WebglAddon());
 term.loadAddon(fitAddon);
