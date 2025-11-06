@@ -5,7 +5,7 @@ use log::{info, warn};
 use crate::app::App;
 use crate::cmds::{self, CMD_HISTORY, COMMANDS, MobileType};
 use crate::termstate::TermState;
-use crate::utils::longest_common_prefix;
+use crate::utils::{longest_common_prefix, write};
 use crate::{
   consts, filesystem, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf,
 };
@@ -357,10 +357,14 @@ impl Shell {
 
     return if let Some(cmd_info) = cmd_info {
       (cmd_info.func)(state, cmdline.trim_end_matches(' '))
-    } else {
-      state.cursor_y += 1;
+    } else if !cmd.is_empty() {
+      state.cursor_y += 2;
       state.cursor_x = consts::PREFIX.len();
       write_solo!(state, format!("command not found: {}, try using help", cmd));
+      None
+    } else {
+      state.cursor_y += 1;
+      init!(state);
       None
     };
   }
