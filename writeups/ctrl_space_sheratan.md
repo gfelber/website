@@ -8,7 +8,7 @@ Status: Unsolved
 
 Category: PWN, KERNEL
 
-Points: 0 Solves
+Points: 500 (0 Solves)
 
 Description:
 > Our industry-leading Sheratan ground station enables seamless communication with your orbital assets.

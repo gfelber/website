@@ -3,7 +3,7 @@ Version: 03-11-2025
 
 # ARIES - Hamal
 
-Status: Unsolved
+Status: Solved
 
 Category: PWN
 
