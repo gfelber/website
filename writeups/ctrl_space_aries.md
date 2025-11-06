@@ -23,9 +23,12 @@ Description:
 ## TL;DR 
 ARIES combines all three previous challenge to exploit the service start to finish.
 We exploit the following parts:
-1. [Hamal](https://gfelber.dev/writeups/ctrl_space_hamal.md): to get initial persistence
-2. [Sheratan](https://gfelber.dev/writeups/ctrl_space_sheratan.md): to get privilege escalation and access to the space interface
-3. [Mesarthim](https://gfelber.dev/writeups/ctrl_space_mesarthim.md): exploit the satellite and win
+
+[Hamal](https://gfelber.dev/writeups/ctrl_space_hamal.md) to get initial persistence
+
+[Sheratan](https://gfelber.dev/writeups/ctrl_space_sheratan.md) to get privilege escalation and access to the space interface
+
+[Mesarthim](https://gfelber.dev/writeups/ctrl_space_mesarthim.md) exploit the satellite and win
 
 ```txt
   ┌────────┐                      ┌───────────┐
