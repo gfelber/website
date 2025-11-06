@@ -49,12 +49,12 @@ Lets go over the most important ones:
 
 The *Dockerfile* tells us that we need to deal with a lighttpd server and that the flag is stored in */dev/flag*.
 
-[*Dockerfile*](https://gfelber.dev/writeups/hamal/Dockerfile)
+[*Dockerfile*](https://gfelber.dev/writeups/res/hamal/Dockerfile)
 
 
 The *lighttpd.conf* shows us that there is a fastcgi binary accepting requests through the `/api` endpoint and four process run in parallel `"min-procs" => 4`. Also websockets are enabled `"upgrade" => "enable"`.
 
-[*lighttpd.conf*](https://gfelber.dev/writeups/hamal/lighttpd.conf)
+[*lighttpd.conf*](https://gfelber.dev/writeups/res/hamal/lighttpd.conf)
 
 Looking at the binary we see that the entire service is actually run in ARM64.
 ```  
@@ -69,7 +69,7 @@ Comment:    GCC: (Debian 14.2.0-19) 14.2.0
 
 And last but not least we have the source code in *hamal.c*.
 
-[*hamal.c*](https://gfelber.dev/writeups/hamal/hamal.c)
+[*hamal.c*](https://gfelber.dev/writeups/res/hamal/hamal.c)
 
 
 ### Websockets
@@ -423,6 +423,6 @@ it()
 
 ## Final
 
-[*exploit.py*](https://gfelber.dev/writeups/hamal/exploit.py)
+[*exploit.py*](https://gfelber.dev/writeups/res/hamal/exploit.py)
 
 Flag: `space{th3re_1s_4_r34s0n_1ts_c4ll3d_bl3dd1ng_ed63_6e04d1e31e3154f0}`

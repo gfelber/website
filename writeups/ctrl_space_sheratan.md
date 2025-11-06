@@ -47,13 +47,13 @@ Lets go over the most important ones:
 
 First let's look at the *Dockerfile* to understand what is going one. Basically we are installing dependencies to run a qemu ARM64 for every incoming connection.
 
-[*Dockerfile*](https://gfelber.dev/writeups/sheratan/Dockerfile)
+[*Dockerfile*](https://gfelber.dev/writeups/res/sheratan/Dockerfile)
 
 the *run.sh* script is a bit more interesting. We startup a virtual qemu arm64 VM using the `cortex-a76` which supports PAN (Privileged Access Never) similar to SMAP on amd64. Additionally it looks like we get a outgoing internet connection using user network interface. Last but not least we get the cmdline arguments for the linux kernel. They tell us that kaslr (`kaslr`) is enabled, dmesg is restricted (`quiet`) and we kernel panic and shutdown if any problem is detected (`oops=panic panic_on_warn=1 panic=-1`).
 
-[*run.sh*](https://gfelber.dev/writeups/sheratan/run.sh)
+[*run.sh*](https://gfelber.dev/writeups/res/sheratan/run.sh)
 
-The *run.sh* actually mounts two filesystems and initramfs `rootfs.cpio.gz` and a main filesystem `hamal.ext4` (which is basically the docker container for the [Hamal](https://gfelber.dev/writeups/ctrl_space_hamal.md) challenge).
+The *run.sh* actually mounts two filesystems and initramfs `rootfs.cpio.gz` and a main filesystem `hamal.ext4` (which is basically the docker container for the [Hamal](https://gfelber.dev/writeups/res/ctrl_space_hamal.md) challenge).
 
 extracting the files from the *rootfs.cpio.gz* (e.g. using this [script](https://github.com/gfelber/how2keap/blob/main/scripts/decompress.sh), we have two interesting files:
 
@@ -64,15 +64,15 @@ extracting the files from the *rootfs.cpio.gz* (e.g. using this [script](https:/
 + adds a symlink to the flag in `/flag`
 + and finally starts a nsjail container giving us a shell inside the ext4 filesystem
 
-[*init*](https://gfelber.dev/writeups/sheratan/init)
+[*init*](https://gfelber.dev/writeups/res/sheratan/init)
 
 also lets take a quick look at the *nsjail.conf*. Notably we create a new network namespace (but have access to our internet interface eth0). Even though the filesystem is read only, we mount some tmpfs directories, which allow us to write a binary somewhere.
 
-[*nsjail.conf*](https://gfelber.dev/writeups/sheratan/nsjail.conf)
+[*nsjail.conf*](https://gfelber.dev/writeups/res/sheratan/nsjail.conf)
 
 Finally we have the source code for the kernel module we will have to exploi.
 
-[*sheratan.c*](https://gfelber.dev/writeups/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/sheratan/sheratan.h)
+[*sheratan.c*](https://gfelber.dev/writeups/res/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/sheratan/sheratan.h)
 
 It seem to implement some type of task queue through a new `/proc/sheratan` interface that works like this:
 ```
@@ -184,7 +184,7 @@ Our Proof of Concept will do sth like this:
 
 ```
 
-[*uaf_poc.c*](https://gfelber.dev/writeups/sheratan/uaf_poc.c)
+[*uaf_poc.c*](https://gfelber.dev/writeups/res/sheratan/uaf_poc.c)
 
 
 Note: there are actually multiple race condition but this one is the easiest to exploit.
@@ -266,7 +266,7 @@ void io_pages_unmap(void *ptr, struct page ***pages, unsigned short *npages,
 
 In order to make exploitation easier I wrote some helper functions. Some additional PoC's will also be provided on my kernel exploitation repo [how2keap](https://github.com/gfelber/how2keap) at a later time.
 
-[*io_uring.c*](https://gfelber.dev/writeups/sheratan/io_uring.c) [*io_uring.h*](https://gfelber.dev/writeups/sheratan/io_uring.h)
+[*io_uring.c*](https://gfelber.dev/writeups/res/sheratan/io_uring.c) [*io_uring.h*](https://gfelber.dev/writeups/sheratan/io_uring.h)
 
 Using this gadget we will now do the following steps:
 1. reclaim the heap chunk with provided buffers (bgid 0)
@@ -364,6 +364,6 @@ This basically gives us an easy way to execute our binary as a privileged proces
 
 ## Final
 
-[*pwn.c*](https://gfelber.dev/writeups/sheratan/pwn.c)
+[*pwn.c*](https://gfelber.dev/writeups/res/sheratan/pwn.c)
 
 Flag: `space{4r3_y0u_r34dy_f0r_th3_sp4c3_r4c3_8e5af5b8a23dee6f}`

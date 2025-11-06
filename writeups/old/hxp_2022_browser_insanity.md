@@ -573,7 +573,7 @@ Now we only need to make our website and extract port publicly visible and we WI
 
 ### Final Solution
 
-[*exploit_gen.py*](https://gfelber.dev/writeups/browser_insanity/exploit_gen.py) [*payload.asm*](https://gfelber.dev/writeups/browser_insanity/payload.asm)
+[*exploit_gen.py*](https://gfelber.dev/writeups/res/browser_insanity/exploit_gen.py) [*payload.asm*](https://gfelber.dev/writeups/browser_insanity/payload.asm)
 
 
 Flag: `hxp{wHy_h4cK_Chr0m3_wh3n_y0u_c4n_hAcK_BROWSER}`

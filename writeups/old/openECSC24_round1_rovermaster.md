@@ -131,7 +131,7 @@ Ghidra requires the user to choose the right archtecture for the binary, `Power 
 ### Code
 #### Reversed Code: 
 
-[*rovermaster.c*](https://gfelber.dev/writeups/rovermaster/rovermaster.c)
+[*rovermaster.c*](https://gfelber.dev/writeups/res/rovermaster/rovermaster.c)
 
 There is one obvious vulnerability in this code `read_exactly` overflows the read buffer by one. This allows us to overflow the `rover.name` buffer into the `rover.code`  function pointer inside `cmd_set_name` which can be used to get limited arbitrary code execution:
 
@@ -158,7 +158,7 @@ long long read_exactly(int fd, char *buf, size_t size)
 
 First let's define some helper functions that allow us to interact with the code:
 
-[*helpers.py*](https://gfelber.dev/writeups/rovermaster/helpers.py)
+[*helpers.py*](https://gfelber.dev/writeups/res/rovermaster/helpers.py)
 
 > Note: I use a lot of alias functions (`sla() -> t.sendlineafter()`), if you want the full list look at the start of the final exploit or generate a template using `vagd template`
 
@@ -513,6 +513,6 @@ Combining all three stages finishes our exploit and prints us the flag: `openECS
 
 #### Full Exploit:
 
-[*exploit.py*](https://gfelber.dev/writeups/rovermaster/exploit.py)
+[*exploit.py*](https://gfelber.dev/writeups/res/rovermaster/exploit.py)
 
 > Note: If you don't want to install vagd you can run the exploit locally (inside the vm) using the arguments `LOCAL` or only on the remote using `REMOTE`

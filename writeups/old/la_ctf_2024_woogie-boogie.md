@@ -486,5 +486,5 @@ Flag: `lactf{l1ne_buff3r1ng_1s_s0_us3ful!!}`
 
 ### Exploit
 
-[*exploit.py*](https://gfelber.dev/writeups/woogie_boogie/exploit.py)
+[*exploit.py*](https://gfelber.dev/writeups/res/woogie_boogie/exploit.py)
 
