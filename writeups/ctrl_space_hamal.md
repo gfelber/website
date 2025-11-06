@@ -13,7 +13,8 @@ Description:
 
 > Experience our next-generation web interface: HAMAL.
 > 
-> HAMAL (High-Availability Monitoring and Logistics) provides an intuitive dashboard for monitoring and managing your entire space infrastructure. Get real-time insights into your satellite fleet and ground stations with a clean, responsive interface designed for mission-critical operations.
+> HAMAL (High-Availability Monitoring and Logistics) provides an intuitive dashboard for monitoring and managing your entire space infrastructure. Get real-time insights into your satellite fleet and ground stations with a clean, responsive interface designed for 
+> mission-critical operations.
 > 
 > Access your space operations from anywhere, anytime - all through your web browser.
 

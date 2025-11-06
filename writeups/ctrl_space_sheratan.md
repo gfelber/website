@@ -13,7 +13,8 @@ Points: TBD
 Description:
 > Our industry-leading Sheratan ground station enables seamless communication with your orbital assets.
 > 
-> Sheratan (Secure High-Efficiency Radio and Telemetry Antenna Network) combines efficient, low-power computing with robust reliability - perfect for remote deployment locations. Whether you're tracking a single satellite or coordinating an entire constellation, Sheratan provides the dependable ground infrastructure your missions demand.
+> Sheratan (Secure High-Efficiency Radio and Telemetry Antenna Network) combines efficient, low-power computing with robust reliability - perfect for remote 
+> deployment locations. Whether you're tracking a single satellite or coordinating an entire constellation, Sheratan provides the dependable ground infrastructure your missions demand.
 > 
 > Built for 24/7 operations with minimal maintenance requirements, making you feel like you're reaching out and touching the stars themselves.
 

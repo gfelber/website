@@ -14,7 +14,9 @@ Description:
 
 > Welcome to the cutting edge of space technology with ARIES™.
 > 
-> ARIES (Advanced Remote Infrastructure and Exploration System) is your complete solution for modern space operations. Our integrated platform seamlessly connects your ground stations, satellites, and control interfaces into one powerful ecosystem.
+> ARIES (Advanced Remote Infrastructure and Exploration System) is your complete solution for modern space operations. Our integrated platform seamlessly 
+> connects your ground stations, satellites, and 
+> control interfaces into one powerful ecosystem.
 > 
 > Join the future of space exploration with technology you can trust.
 

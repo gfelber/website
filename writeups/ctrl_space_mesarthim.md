@@ -14,7 +14,10 @@ Description:
 
 > Our advanced Mesarthim satellite platform delivers powerful computing capabilities in orbit.
 > 
-> Mesarthim (Mission Systems Architecture for Real-Time Handling and Integration Management) provides the robust processing power needed for complex space missions, from scientific data analysis to autonomous decision-making. Built on proven computing architecture, our satellites handle demanding workloads while maintaining reliable communication with ground stations.
+> Mesarthim (Mission Systems Architecture for Real-Time Handling and Integration Management) provides the robust processing power needed for complex space missions, from scientific data analysis to autonomous decision-making. Built on proven computing 
+> architecture, our satellites handle demanding 
+> workloads while maintaining reliable communication 
+> with ground stations.
 > 
 > Engineered for long-duration missions with redundant systems and fault tolerance, Mesarthim satellites operate autonomously when needed and respond instantly to ground commands when required.
 > 

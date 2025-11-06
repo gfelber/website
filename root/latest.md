@@ -1,1 +1,0 @@
-writeups/ctrl_space_aries.md

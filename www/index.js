@@ -33,7 +33,7 @@ var term = wasm.term({
     brightWhite: "#e6e6e6",
   },
   fontFamily: "Source Code Pro Variable",
-  fontSize: isMobile ? 12 : 15,
+  fontSize: isMobile ? 15 : 15,
   cols: 80,
 });
 window.term = term;
@@ -71,19 +71,19 @@ function handleTouchMove(e) {
   const touch = e.touches[0];
   const currentY = touch.clientY;
   touchMoveCount++;
-  
+
   // Check if we've moved enough to start scrolling
   const totalDeltaY = Math.abs(currentY - touchStartY);
   if (!isScrolling && totalDeltaY < minScrollDistance) {
     return; // Not enough movement yet
   }
   isScrolling = true;
-  
+
   const deltaY = lastTouchY - currentY;
   lastTouchY = currentY;
-  
+
   scrollAccumulator += deltaY;
-  
+
   // Variable scroll sensitivity based on speed
   const absDelta = Math.abs(deltaY);
   let scrollSensitivity;
@@ -94,7 +94,7 @@ function handleTouchMove(e) {
   } else {
     scrollSensitivity = 25; // Slow scroll - more precise
   }
-  
+
   // Send scroll based on accumulated movement
   while (Math.abs(scrollAccumulator) >= scrollSensitivity) {
     if (scrollAccumulator > 0) {
@@ -112,12 +112,12 @@ function handleTouchMove(e) {
 function handleTouchEnd(e) {
   touchEndX = e.changedTouches[0].screenX;
   touchEndY = e.changedTouches[0].screenY;
-  
+
   // Only handle swipe if we weren't scrolling
   if (!isScrolling) {
     handleSwipe();
   }
-  
+
   scrollAccumulator = 0;
   isScrolling = false;
   touchMoveCount = 0;
@@ -223,6 +223,19 @@ function init() {
   domterm.innerText = "";
   term.open(domterm);
   fitAddon.fit();
+
+  // Dynamically reduce font size on mobile until we have at least 59 columns
+  if (isMobile) {
+    let currentFontSize = term.options.fontSize;
+    const minFontSize = 9;
+
+    while (term.cols < 60 && currentFontSize > minFontSize) {
+      currentFontSize -= 0.5;
+      term.options.fontSize = currentFontSize;
+      fitAddon.fit();
+    }
+  }
+
   wasm.init(term.rows, term.cols, window.location.pathname);
 
   // Don't focus on mobile to prevent keyboard
@@ -277,6 +290,19 @@ document.fonts.ready.then(() => {
 
 addEventListener("resize", () => {
   fitAddon.fit();
+
+  // Dynamically reduce font size on mobile until we have at least 59 columns
+  if (isMobile) {
+    let currentFontSize = term.options.fontSize;
+    const minFontSize = 6; // Don't go below this
+
+    while (term.cols < 59 && currentFontSize > minFontSize) {
+      currentFontSize -= 0.5;
+      term.options.fontSize = currentFontSize;
+      fitAddon.fit();
+    }
+  }
+
   wasm.init(term.rows, term.cols, window.location.pathname);
 });
 
