@@ -24,7 +24,7 @@ Description:
 
 ## TL;DR 
 
-Mesarthim is the third and final stage of the ARIES challenge. It requires exploiting a x86_64 protobuf binary which introduced a small heap BOF using the size changes between protobuf variable length integers. We can exploit this vulnerability by adding new entries the the existing protobuf structure. This allows us to do arbitrary heap allocation, with arbitrary data and finally achieve RCE. Due to being a space challenge the entire payload must be send at once without interactive responses. Preventing us from getting any meaningful leaks.
+Mesarthim is the third and final stage of the ARIES challenge. It requires exploiting a x86_64 protobuf binary which introduced a small heap BOF using the size changes between protobuf variable length integers. We can exploit this vulnerability by adding new entries in the the existing protobuf structure. This allows us to do arbitrary heap allocation, with arbitrary data and finally achieve RCE. Due to being a space challenge the entire payload must be send at once without interactive responses. Preventing us from getting any meaningful leaks.
 
 
 ## Files
@@ -50,19 +50,19 @@ attachments/
 
 Lets go over the most important ones:
 
-First let's look at the *Dockerfile* and it is rather simple we executes *run.sh* in a very simple container `/opt/mesarthim`. The run.sh script simply store the flag in the `/opt/mesarthim` and runs `exec ./mesarthim_deploy < /files/input > /files/output`.
+First let's look at the *Dockerfile* and it is rather simple we execute *run.sh* in a very simple container `/opt/mesarthim`. The run.sh script simply store the flag in the `/opt/mesarthim` and runs `exec ./mesarthim_deploy < /files/input > /files/output`.
 
 [*Dockerfile*](https://gfelber.dev/writeups/mesarthim/Dockerfile) [*run.sh*](https://gfelber.dev/writeups/mesarthim/run.sh)
 
-Ok next let's take a look at the sources files for *mesarthim_deploy.c* first, which basically just executes `mesarthim`, reads the input file `/files/input` from stdin, sends it to `mesarthim` and writes the output to stdout aka `/files/output`. Because this is a space challenge we will have to send our entire exploit through one input and only receive one output. This means that we won't be able to get any ASLR leaks (that we can use).
+Ok next let's take a look at the sources files for *mesarthim_deploy.c* first. It basically just executes `mesarthim`, reads the input file `/files/input` from stdin, sends it to `mesarthim` and writes the output to stdout aka `/files/output`. Because this is a space challenge we will have to send our entire exploit through one input and only receive one output. This means that we won't be able to get any ASLR leaks (that are meaningful).
 
 [*mesarthim_deploy.c*](https://gfelber.dev/writeups/mesarthim/mesarthim_deploy.c)
 
-The actual challenge seems to be *mesarthim.c*, which implements a simple TCP server which accepts frames, which are defined through *mesarthim.proto*, executes the corresponding command and finally sends a response. Also multiple frames can be send through one connection.
+The actual challenge seems to be *mesarthim.c*, which implements a simple TCP server which accepts frames, that defined through *mesarthim.proto*. It executes the corresponding command and finally sends a response. Also multiple frames can be send through one connection.
 
 [*mesarthim.c*](https://gfelber.dev/writeups/mesarthim/mesarthim.c) [*mesarthim.proto*](https://gfelber.dev/writeups/mesarthim/mesarthim.proto)
 
-Also one important thing to note is that the binary actually is not a PIE (Position Independent Executable) which should make exploitation easier. 
+Also one important thing to note is that the binary actually is not a PIE (Position Independent Executable) and static which should make exploitation easier. 
 
 ```
 $ vagd info share/mesarthim
@@ -75,14 +75,14 @@ Stripped:   No
 Comment:    GCC: (Debian 14.2.0-19) 14.2.0
 ```
 
-Last we have the *mesarthim_client.c*. This actually is never used inside the challenge, but it showcases examples how one could interact with the mesarthim challenge.
+Last we have the *mesarthim_client.c*. This actually is never used inside the challenge, but it showcases how one could interact with the mesarthim challenge.
 
 [*mesarthim_client.c*](https://gfelber.dev/writeups/mesarthim/mesarthim_client.c)
 
 
 ## Vulnerability
 
-The main vulnerability of this challenges happens due to the nature of variable size integers. Notably the Frame size `int32 size  = 1;` and `Commands cmd = 2;` (`enum Commands`) are stored in `int32` attributes. This are actually really inefficient in storing negative values which even google is aware of: 
+The main vulnerability of this challenges happens due to the nature of variable size integers. Notably the Frame size `int32 size  = 1;` and `Commands cmd = 2;` (`enum Commands`) are stored in `int32` attributes. Which are actually really inefficient at storing negative values (even google is aware of that): 
 
 | Proto Type | Notes      |
 | ---------- | ---------- |
@@ -135,7 +135,7 @@ That is also why the client actually calculates the size like this:
     frame->size = size;
 ```
 
-Note: During the CTF another unintended vulnerability was discovered. Basically it is possible to integer underflow `header->size - bytes_received` to get a massive heap overflow, but due to the follow up check `bytes_received != header->size` which closes the connection it is not easily possible to exploit this vulnerability.
+Note: During the CTF another unintended vulnerability was discovered. Basically it is possible to integer underflow `header->size - bytes_received` to get a massive heap overflow, but due to the follow up check `bytes_received != header->size` which closes the connection. It is probably not easily possible to exploit this vulnerability.
 
 ### Protobuf `bytes fun = 4`
 
@@ -158,6 +158,8 @@ message Frame {
   repeated bytes spray = 4;
 }
 ```
+
+[*mesarthim.proto*](https://gfelber.dev/writeups/mesarthim/mesarthim.proto)
 
 So now we have our vulnerability (heap BOF) and the ability to do arbitrary heap allocations, that are freed afterwards!
 
@@ -304,5 +306,6 @@ Also note that we use `cat flag >&4` to read the flag directly into the open soc
 # Final
 
 [*exploit.py*](https://gfelber.dev/writeups/mesarthim/exploit.py)
+
 
 Flag: `space{pr0t0buf_wh3re_u_le4st_exp3ct_It_d8e84088d8497e6a}`

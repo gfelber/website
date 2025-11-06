@@ -10,6 +10,7 @@ message Frame {
   int32 size  = 1;
   Commands cmd = 2;
   Status status = 3;
+  repeated bytes spray = 4;
 }
 
 enum Commands {
@@ -21,11 +22,12 @@ enum Commands {
   STATUS = 5;
   PONG = 6;
   SET_NAME = 7;
-  ERROR = -1;
+  UNKNOWN = -1;
 }
 
 message Status {
-  string name = 1;
+  // use bytes to avoid string encoding issues
+  bytes name = 1;
   int32 time = 2;
   int32 uptime = 3;
   int32 signal = 4;

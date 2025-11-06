@@ -48,7 +48,7 @@ First let's look at the *Dockerfile* to understand what is going one. Basically 
 
 [*Dockerfile*](https://gfelber.dev/writeups/sheratan/Dockerfile)
 
-the *run.sh* script is a bit more interesting. We startup a virtual qemu arm64 VM using the `cortex-a76` which supports PAN (Privileged Access Never) similar to SMAP on amd64. Additionally it looks like we get a outgoing internet connection using user network interface. Last but not least we get the cmdline arguments for the linux kernel. They tell us that kaslr (`kaslr`) is enabled, dmesg is restricted (`quiet`) and we kernel panics and shuts down if any problem is detected (`oops=panic panic_on_warn=1 panic=-1`).
+the *run.sh* script is a bit more interesting. We startup a virtual qemu arm64 VM using the `cortex-a76` which supports PAN (Privileged Access Never) similar to SMAP on amd64. Additionally it looks like we get a outgoing internet connection using user network interface. Last but not least we get the cmdline arguments for the linux kernel. They tell us that kaslr (`kaslr`) is enabled, dmesg is restricted (`quiet`) and we kernel panic and shutdown if any problem is detected (`oops=panic panic_on_warn=1 panic=-1`).
 
 [*run.sh*](https://gfelber.dev/writeups/sheratan/run.sh)
 
@@ -69,11 +69,11 @@ also lets take a quick look at the *nsjail.conf*. Notably we create a new networ
 
 [*nsjail.conf*](https://gfelber.dev/writeups/sheratan/nsjail.conf)
 
-Finally we have the source code for the kernel module we will have to exploit, which seems to implement some type of task queue through a new `/proc/sheratan` interface.
+Finally we have the source code for the kernel module we will have to exploi.
 
 [*sheratan.c*](https://gfelber.dev/writeups/sheratan/sheratan.c) [*sheratan.h*](https://gfelber.dev/writeups/sheratan/sheratan.h)
 
-We see that a task queue / worker pipeline is implemented like this:
+It seem to implement some type of task queue through a new `/proc/sheratan` interface that works like this:
 ```
 
  ┌──────────┐      ┌────────────────┐    ┌───────────────────┐
@@ -97,6 +97,7 @@ We see that a task queue / worker pipeline is implemented like this:
 
 
 On command creation via `SHERATAN_IOCTL_PUSH` a kernel heap allocation is done, the cmd info is stored in it, and the cmd is added to a linked list. Also the client waits for the command to finish.
+
 ```c
   case SHERATAN_IOCTL_PUSH:
     pr_info("sheratan: push\n");
@@ -114,7 +115,7 @@ On command creation via `SHERATAN_IOCTL_PUSH` a kernel heap allocation is done, 
     return 0;
 ```
 
-When the Worker pops (through `SHERATAN_IOCTL_POP`) a command the top cmd is removed from the linked list and stored in the `private_data` attribute of the file pointer struct (so bound to the file descriptor).
+When the Worker pops the top cmd (through `SHERATAN_IOCTL_POP`) it is removed from the linked list and stored in the `private_data` attribute of the file pointer struct (so bound to the file descriptor).
 
 ```c
   case SHERATAN_IOCTL_POP:
@@ -128,7 +129,7 @@ When the Worker pops (through `SHERATAN_IOCTL_POP`) a command the top cmd is rem
     return 0;
 ```
 
-After the worker finished doing the command it notifies the client through `SHERATAN_IOCTL_DONE`, which wakes it about. It also frees the cmd from the heap and removes the reference from the `private_data`.
+After the worker finished doing the command it notifies the client through `SHERATAN_IOCTL_DONE`. It also `kfree`s the cmd from the heap and removes the reference from the `private_data`.
 ```c
   case SHERATAN_IOCTL_DONE:
     pr_info("sheratan: done\n");
@@ -141,13 +142,13 @@ After the worker finished doing the command it notifies the client through `SHER
     return 0;
 ```
 
-Additionally there is an API for updating the status, but that should be safe.
+Additionally there is an API for updating the status, but that isn't relevant for the exploit.
 
 ## Vulnerability
 
 Looking at the code it seems rather simple and safe on first glance. This is a trick as we are not looking for a common vulnerability, but a race condition.
 
-Notably multiple processes can share the same file descriptor and therefore the same `private_data`. So what happens if we "finish" two command at the same time? We get a double free.
+Notably multiple processes can share the same file descriptor and therefore the same `private_data`. So what happens if we "finish" two commands at the same time? We get a double free.
 
 ```c
     current_cmd = filp->private_data;
@@ -168,7 +169,7 @@ Our Proof of Concept will do sth like this:
       │                 │        PUSH CMD │
       │ POP CMD         │ ◄────────────── │
       │ ◄────────────── │                 │
-      │ DONE CMD        │ FINISHED*       │
+      │ DONE CMD        │ complete        │
       │ ──────────────► │ ──────────────► │
       │                 │        DONE CMD │
       │        Dangling │ ◄────────────── │
@@ -229,7 +230,7 @@ int io_pbuf_mmap(struct file *file, struct vm_area_struct *vma)
 }
 ```
 
-And last but not least we can dereference them at any time decrementing the page references, which means we can actually abuse a double free get arbitrary reads/writes through userland (similar to Dirty Pagetable) if the physical pages are reclaimed by the kernel.
+And last but not least we can dereference them at any time decrementing the page references, which means we can actually abuse a double free to get arbitrary reads/writes through userland (similar to Dirty Pagetable) if the physical pages are reclaimed by the kernel.
 ```c
 void io_pages_unmap(void *ptr, struct page ***pages, unsigned short *npages,
 		    bool put_pages)
@@ -263,7 +264,7 @@ void io_pages_unmap(void *ptr, struct page ***pages, unsigned short *npages,
 ```
 
 
-Also, in order to make exploitation easier I wrote some helper functions. Some additional proof of concepts will also be provided on my kernel exploitation repo [how2keap](https://github.com/gfelber/how2keap) at a later time.
+In order to make exploitation easier I wrote some helper functions. Some additional PoC's will also be provided on my kernel exploitation repo [how2keap](https://github.com/gfelber/how2keap) at a later time.
 
 [*io_uring.c*](https://gfelber.dev/writeups/sheratan/io_uring.c) [*io_uring.h*](https://gfelber.dev/writeups/sheratan/io_uring.h)
 
@@ -329,7 +330,7 @@ We now have a reference to a physical page in userland that has been freed. If i
 
 From this point on we can proceed with the usual Dirty Pagetable exploitation strategy e.g. described in detail here [Dirty Pagetable](https://web.archive.org/web/20250318184322/https://yanglingxi1993.github.io/dirty_pagetable/dirty_pagetable.html) or in the context of a CTF challenge here [Understanding Dirty Pagetable](https://web.archive.org/web/20250328091917/https://ptr-yudai.hatenablog.com/entry/2023/12/08/093606) (ptr-yudai pls notice me `(≧︿≦)`).
 
-One minor adjustment with the dirty pagteable technique described in the previous writeup is that it actually never "forcefully flushes" the TLB. There are two ways that i know of to achieve this, either the slow way I used before:
+One minor adjustment with the Dirty Pagteable technique described in the previous writeup is that it actually never "forcefully flushes" the TLB. There are two ways that i know of to achieve this, either the slow way I used before:
 
 ```c
 void flush_tlb() {
@@ -340,7 +341,7 @@ void flush_tlb() {
 
 ```
 
-or a way better and faster technique used by [leave](https://github.com/manuele-pandolfi), he also sometimes publishes cool blog posts [here](https://kqx.io/).
+or a way better and faster technique used by [leave](https://github.com/manuele-pandolfi) (he also sometimes publishes cool blog posts [here](https://kqx.io/))
 
 ```c
 void flush_tlb() {
@@ -355,9 +356,9 @@ void flush_tlb() {
 }
 ```
 
-One very interesting thing about the Dirty Pagetable on ARM64 is that it actually doesn't have any physical KASLR, so we can just overwrite and memory from the kernel image directly. Actually the day before the CTF start Google Project Zero actually made a blog post about this behaviour (among other things): [Defeating KASLR by Doing Nothing at All](https://googleprojectzero.blogspot.com/2025/11/defeating-kaslr-by-doing-nothing-at-all.html). I guess i didn't expect to by snipped by them, but it happens `¯\_(ツ)_/¯`.
+One very interesting thing about the Dirty Pagetable on ARM64 is that it actually doesn't have any physical KASLR, so we can just overwrite and memory from the kernel image directly. Actually the day before the CTF start Google Project Zero made a blog post about this behaviour (among other things): [Defeating KASLR by Doing Nothing at All](https://googleprojectzero.blogspot.com/2025/11/defeating-kaslr-by-doing-nothing-at-all.html). I guess i didn't expect to by snipped by them, but it happens `¯\_(ツ)_/¯`.
 
-Privilege Escalation from here is straight forward, we could either write our own ring 0 shellcode, overwrite modprove OR overwrite core_pattern which i actually got from this kernel CTF submission: [CVE-2024-36972](https://github.com/st424204/security-research/tree/fa3bed7298d85865bd1109fc278b982dc725cf28/pocs/linux/kernelctf/CVE-2024-36972_lts_cos).
+Privilege Escalation from here is straight forward, we could either write our own ring 0 shellcode, overwrite modprobe OR overwrite core_pattern which i actually got from this kernel CTF submission: [CVE-2024-36972](https://github.com/st424204/security-research/tree/fa3bed7298d85865bd1109fc278b982dc725cf28/pocs/linux/kernelctf/CVE-2024-36972_lts_cos).
 
 This basically gives us an easy way to execute our binary as a privileged process outside the namespace and get the flag.
 

