@@ -168,7 +168,7 @@ static void handle_signal_boost(void) {
 So this would allow us to write a ROP chain, but we still need to break ASLR somehow ... so how do we do that?
 
 ### Half-Open Connections
-Because we now make use of a full duplex connections we have access to a powerful TCP primitive half-open (al. half-closed) and make into into a simplex connection. So how is this useful?
+Because we now make use of a full duplex connections we have access to a powerful TCP primitive half-open (al. half-closed) socket that turn into simplex connections. So how is this useful?
 
 If we look at the following code snippet inside `ws_recv()` we see that we allocate a heap chunk using the websocket frame length (without clearing) then receive data from the client. So what would happens if `fread()` terminates without reading all the data? It leaves the memory region uninitialised.
 

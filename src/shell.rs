@@ -3,7 +3,7 @@ use std::cmp::max;
 use log::{info, warn};
 
 use crate::app::App;
-use crate::cmds::{self, CMD_HISTORY, COMMANDS, MobileType};
+use crate::cmds::{self, CMD_HISTORY, COMMANDS, CmdType};
 use crate::termstate::TermState;
 use crate::utils::{longest_common_prefix, write};
 use crate::{
@@ -157,7 +157,10 @@ impl Shell {
       let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
       let filtered_cmds: Vec<_> = cmds
         .iter()
-        .filter(|cmd| cmd.starts_with(&inputstr) && (!mobile || COMMANDS.lock().unwrap()[**cmd].mobile != MobileType::NotMobile))
+        .filter(|cmd| cmd.starts_with(&inputstr) &&
+          (!mobile || COMMANDS.lock().unwrap()[**cmd].cmd_type != CmdType::NotMobile) &&
+          (mobile || COMMANDS.lock().unwrap()[**cmd].cmd_type != CmdType::MobileOnly)
+        )
         .map(|cmd| cmd.to_string())
         .collect();
       return filtered_cmds;
@@ -174,7 +177,7 @@ impl Shell {
     }
     let cmd_info = cmd_info.unwrap();
 
-    if mobile && cmd_info.mobile == MobileType::Mobile {
+    if mobile && cmd_info.cmd_type == CmdType::Mobile {
       return vec![];
     }
 
@@ -198,7 +201,7 @@ impl Shell {
     } else if search.contains('/') {
       &state.path.join(crnt_path)
     } else {
-      state.path.filename
+      state.path.url
     };
 
     let resolved = utils::resolve_path(path);
@@ -212,7 +215,10 @@ impl Shell {
     } else {
       change.unwrap()
     };
-    let entries: Vec<_> = dir.entries.keys().cloned().collect();
+    let mut entries: Vec<_> = dir.entries.keys().cloned().collect();
+    if dir.url != "" {
+      entries.append(&mut vec![".."]);
+    }
 
     let filtered_entries: Vec<_> = entries
       .iter()
@@ -230,114 +236,74 @@ impl Shell {
   }
 
   fn autocomplete(&mut self, state: &mut TermState) {
-    let mut inputstr: String = self.input_buffer.iter().collect();
+    let inputstr: String = self.input_buffer.iter().collect();
+    let filtered_options = self.get_autocomplete_options(state, false);
+
+    if filtered_options.is_empty() {
+      return;
+    }
+
+    // Command autocompletion (no space in input)
     if !inputstr.contains(' ') {
-      let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
-      let filtered_cmds: Vec<_> = cmds
-        .iter()
-        .filter(|cmd| cmd.starts_with(&inputstr))
-        .map(|cmd| cmd.to_owned())
-        .collect();
-      return if filtered_cmds.is_empty() {
-      } else if filtered_cmds.len() == 1 {
-        let cmd = format!("{} ", filtered_cmds.first().unwrap());
+      if filtered_options.len() == 1 {
+        let cmd = format!("{} ", filtered_options.first().unwrap());
         self.clearline(state);
         write!("{}", cmd);
         state.cursor_x += cmd.len();
         self.input_buffer = cmd.chars().collect();
       } else {
-        let prefix = longest_common_prefix(filtered_cmds.clone());
+        let prefix = longest_common_prefix(filtered_options.iter().map(|s| s.as_str()).collect());
         info!("common prefix: {}", prefix);
-        write_solo!(state, filtered_cmds.join("\t"));
+        write_solo!(state, filtered_options.join("\t"));
         self
           .input_buffer
           .append(&mut prefix.trim_start_matches(&inputstr).chars().collect());
-        inputstr = self.input_buffer.iter().collect();
-        state.cursor_x += inputstr.len();
-        write!("{}", inputstr);
-      };
-    }
-    let wsi = inputstr.rfind(' ').unwrap();
-    let search = &inputstr[wsi + 1..];
-
-    let mut search_vals = search.rsplitn(2, '/');
-    let filename = search_vals.next().unwrap();
-    let crnt_path = search_vals.next().unwrap_or("");
-
-    info!("current path: {}", crnt_path);
-    info!("filename: {}", filename);
-
-    let path = if search.starts_with('/') {
-      crnt_path
-    } else if search.contains('/') {
-      &state.path.join(crnt_path)
-    } else {
-      state.path.url
-    };
-
-    info!("autocomplete path: {}", path);
-
-    let resolved = utils::resolve_path(path);
-    let change = filesystem::ROOT.get_file(&resolved);
-    if change.is_err() || !change.clone().unwrap().is_dir {
+        let new_inputstr: String = self.input_buffer.iter().collect();
+        state.cursor_x += new_inputstr.len();
+        write!("{}", new_inputstr);
+      }
       return;
     }
 
-    let dir = if resolved.is_empty() {
-      &filesystem::ROOT
-    } else {
-      change.unwrap()
-    };
-    let entries: Vec<_> = dir.entries.keys().cloned().collect();
+    // File/directory autocompletion
+    let wsi = inputstr.rfind(' ').unwrap();
+    let search = &inputstr[wsi + 1..];
+    let mut search_vals = search.rsplitn(2, '/');
+    let filename = search_vals.next().unwrap();
 
-    let filtered_entries: Vec<_> = entries
-      .iter()
-      .filter(|entry| entry.starts_with(&filename))
-      .map(|entry| entry.to_owned())
-      .collect();
-
-    return if filtered_entries.is_empty() {
-    } else if filtered_entries.len() == 1 {
-      let entry_name = filtered_entries.first().unwrap();
-      let entry = if dir.get_file(entry_name.to_string()).unwrap().is_dir {
-        format!("{}/", entry_name)
+    if filtered_options.len() == 1 {
+      let entry = filtered_options.first().unwrap();
+      // Add space after files (not directories which already have /)
+      let completion = if entry.ends_with('/') {
+        entry.to_string()
       } else {
-        format!("{} ", entry_name)
+        format!("{} ", entry)
       };
-      info!("autcomplete entry: {}", entry);
+      info!("autocomplete entry: {}", completion);
       let clear: String = consts::RETURN.repeat(filename.len());
-      write!("{}{}", clear, entry);
-      state.cursor_x += entry.len() - filename.len();
+      write!("{}{}", clear, completion);
+      state.cursor_x += completion.len() - filename.len();
       self
         .input_buffer
         .truncate(self.input_buffer.len().saturating_sub(filename.len()));
-      let mut entry_chars: Vec<char> = entry.chars().collect();
+      let mut entry_chars: Vec<char> = completion.chars().collect();
       self.input_buffer.append(&mut entry_chars);
     } else {
-      write_solo!(
-        state,
-        filtered_entries
-          .clone()
-          .into_iter()
-          .map(|x| {
-            return if dir.get_file(x.to_string()).unwrap().is_dir {
-              format!("{}/", x)
-            } else {
-              x.to_string()
-            };
-          })
-          .collect::<Vec<_>>()
-          .join("\t")
-      );
-      let prefix = longest_common_prefix(filtered_entries);
+      write_solo!(state, filtered_options.join("\t"));
+      // Remove trailing slashes for prefix calculation
+      let options_without_slash: Vec<_> = filtered_options
+        .iter()
+        .map(|s| s.trim_end_matches('/'))
+        .collect();
+      let prefix = longest_common_prefix(options_without_slash);
       info!("common prefix: {}", prefix);
       self
         .input_buffer
         .append(&mut prefix.trim_start_matches(filename).chars().collect());
-      inputstr = self.input_buffer.iter().collect();
-      state.cursor_x += inputstr.len();
-      write!("{}", inputstr);
-    };
+      let new_inputstr: String = self.input_buffer.iter().collect();
+      state.cursor_x += new_inputstr.len();
+      write!("{}", new_inputstr);
+    }
   }
 
   fn command(&mut self, state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {

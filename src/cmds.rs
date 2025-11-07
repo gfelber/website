@@ -106,17 +106,18 @@ type CommandFn = fn(&mut TermState, &str) -> Option<Box<dyn App>>;
 
 #[derive(Clone)]
 #[derive(PartialEq)]
-pub enum MobileType {
+pub enum CmdType {
   NotMobile,
   Mobile,
-  MobileArg
+  MobileArg,
+  MobileOnly,
 }
 
 #[derive(Clone)]
 pub struct CmdInfo {
   pub func: CommandFn,
   pub help: &'static str,
-  pub mobile: MobileType,
+  pub cmd_type: CmdType,
 }
 
 lazy_static! {
@@ -124,7 +125,7 @@ lazy_static! {
   pub static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
 }
 
-#[shell_cmd(COMMANDS, "clear\t\tclear terminal", MobileType::Mobile)]
+#[shell_cmd(COMMANDS, "clear\t\tclear terminal", cmd_type=CmdType::Mobile)]
 pub fn clear(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   clear!(state);
   prefix!(state);
@@ -137,13 +138,13 @@ pub fn pwd(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, "whoami\t\tprint current user", MobileType::Mobile)]
+#[shell_cmd(COMMANDS, "whoami\t\tprint current user", cmd_type=CmdType::Mobile)]
 pub fn whoami(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
   None
 }
 
-#[shell_cmd(COMMANDS, "whereis\t\tLocate where stuff is", MobileType::Mobile)]
+#[shell_cmd(COMMANDS, "whereis\t\tLocate where stuff is", cmd_type=CmdType::Mobile)]
 pub fn whereis(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   write_solo!(state, "https://github.com/gfelber/website");
   None
@@ -188,7 +189,7 @@ pub fn cat(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, "less\tFILE\tview file in screen", MobileType::MobileArg)]
+#[shell_cmd(COMMANDS, "less\tFILE\tview file in screen", cmd_type=CmdType::MobileArg)]
 pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: LessArgs = parse_args!(state, LessArgs::try_parse_from(cmdline.split(" ")), None);
   let mut less = Less::new();
@@ -354,7 +355,13 @@ pub fn ls_rec(state: &mut TermState, cmdline: &str) -> String {
   )
 }
 
-#[shell_cmd(COMMANDS, "cd\t[DIR]\tchange directory", MobileType::Mobile)]
+#[shell_cmd(COMMANDS, "/\t\tgo to root directory", cmd_type=CmdType::MobileOnly, name="/")]
+pub fn root(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+  let _ = cd(state, &format!("cd /{}", cmdline.trim_start_matches("root")));
+  None
+}
+
+#[shell_cmd(COMMANDS, "cd\t[DIR]\tchange directory")]
 pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let args: CdArgs = parse_args!(state, CdArgs::try_parse_from(cmdline.split(" ")), None);
   let path_str = args.dir.unwrap_or("/".to_string());
@@ -391,7 +398,9 @@ fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
 #[shell_cmd(COMMANDS, "help\t\tprint this message")]
 pub fn help(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   let commands = COMMANDS.lock().unwrap();
-  let mut help_msgs: Vec<&str> = commands.values().map(|cmd_info| cmd_info.help).collect();
+  let mut help_msgs: Vec<&str> = commands.values()
+    .filter(|cmd_info| cmd_info.cmd_type != CmdType::MobileOnly)
+    .map(|cmd_info| cmd_info.help).collect();
   help_msgs.sort();
   write_solo!(state, help_msgs.join(consts::NEWLINE));
   None
