@@ -177,7 +177,7 @@ impl Shell {
     }
     let cmd_info = cmd_info.unwrap();
 
-    if mobile && cmd_info.cmd_type == CmdType::Mobile {
+    if mobile && cmd_info.cmd_type != CmdType::MobileArg {
       return vec![];
     }
 

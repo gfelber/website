@@ -7,14 +7,14 @@ import { CanvasAddon } from "@xterm/addon-canvas";
 // Detect Twitter/X.com redirect and force reload once
 (function() {
   const referrer = document.referrer.toLowerCase();
-  const isFromTwitter = referrer.includes('twitter.com') || 
-                        referrer.includes('t.co') || 
+  const isFromTwitter = referrer.includes('twitter.com') ||
+                        referrer.includes('t.co') ||
                         referrer.includes('x.com');
-  
+
   // Check if we've already reloaded via URL parameter
   const urlParams = new URLSearchParams(window.location.search);
   const hasReloaded = urlParams.has('_r');
-  
+
   if (isFromTwitter && !hasReloaded) {
     // Add reload parameter and reload
     const newUrl = new URL(window.location.href);
@@ -211,7 +211,7 @@ function attachCommandListeners() {
       if (complete) {
         // It's an autocomplete option - type it directly
         // Don't add space if it's a directory (ends with /)
-        if (complete.endsWith('/')) {
+        if (complete.endsWith('/') && complete.length != 1) {
           term.input(complete);
         } else {
           term.input(complete + " ");
