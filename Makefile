@@ -22,3 +22,6 @@ dev: esbuild
 esbuild:
 	cd src/js; \
 	npm run esbuild
+
+clean:
+	cargo clean

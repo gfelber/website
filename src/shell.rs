@@ -5,7 +5,7 @@ use log::{info, warn};
 use crate::app::App;
 use crate::cmds::{self, CMD_HISTORY, COMMANDS, CmdType};
 use crate::termstate::TermState;
-use crate::utils::{longest_common_prefix, write};
+use crate::utils::{longest_common_prefix};
 use crate::{
   consts, filesystem, init, new, prefix, utils, write, write_buf, write_solo, writeln_buf,
 };
