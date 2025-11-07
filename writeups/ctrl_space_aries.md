@@ -3,12 +3,11 @@ Version: 03-11-2025
 
 # ARIES
 
-
 Status: Unsolved
 
 Category: PWN, SPACE, KERNEL, FULL CHAIN
 
-Points: 500 (0 Solves)
+Points: 100 (0 Solves)
 
 Description:
 
@@ -30,7 +29,7 @@ We exploit the following parts:
 
 [Mesarthim](https://gfelber.dev/writeups/ctrl_space_mesarthim.md) exploit the satellite and win
 
-```txt
+```
   ┌────────┐                      ┌───────────┐
   │ Client │            Satellite │ Mesarthim │
   └────────┘                      └──┬────────┘
