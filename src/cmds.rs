@@ -111,6 +111,7 @@ pub enum CmdType {
   Mobile,
   MobileArg,
   MobileOnly,
+  Alias,
 }
 
 #[derive(Clone)]
@@ -205,7 +206,7 @@ pub fn less(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   }
 }
 
-#[shell_cmd(COMMANDS, "ll\t\tlist directory contents in long format")]
+#[shell_cmd(COMMANDS, "ll\t[PATH]\tlist directory in long format", cmd_type=CmdType::Alias)]
 pub fn ll(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   let out = ls_rec(state, &format!("ls -lh{}", cmdline.trim_start_matches("ll")));
   write!("{}", out);
@@ -399,7 +400,7 @@ fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
 pub fn help(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
   let commands = COMMANDS.lock().unwrap();
   let mut help_msgs: Vec<&str> = commands.values()
-    .filter(|cmd_info| cmd_info.cmd_type != CmdType::MobileOnly)
+    .filter(|cmd_info| ![CmdType::Alias, CmdType::MobileOnly].contains(&cmd_info.cmd_type))
     .map(|cmd_info| cmd_info.help).collect();
   help_msgs.sort();
   write_solo!(state, help_msgs.join(consts::NEWLINE));

@@ -157,10 +157,12 @@ impl Shell {
       let cmds: Vec<_> = COMMANDS.lock().unwrap().keys().cloned().collect();
       let filtered_cmds: Vec<_> = cmds
         .iter()
-        .filter(|cmd| cmd.starts_with(&inputstr) &&
-          (!mobile || COMMANDS.lock().unwrap()[**cmd].cmd_type != CmdType::NotMobile) &&
-          (mobile || COMMANDS.lock().unwrap()[**cmd].cmd_type != CmdType::MobileOnly)
-        )
+        .filter(|cmd| {
+          let cmd_type: CmdType = COMMANDS.lock().unwrap()[**cmd].cmd_type.clone();
+          cmd.starts_with(&inputstr) &&
+          (!mobile || ![CmdType::NotMobile, CmdType::Alias].contains(&cmd_type)) &&
+          (mobile || cmd_type != CmdType::MobileOnly)
+        })
         .map(|cmd| cmd.to_string())
         .collect();
       return filtered_cmds;
@@ -181,7 +183,7 @@ impl Shell {
       return vec![];
     }
 
-    if inputstr.split(' ').count() - 1 > 1 {
+    if inputstr.matches(' ').count() > 1 && (inputstr.contains('/') || inputstr.contains('.')) {
       return vec![];
     }
 
