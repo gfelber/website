@@ -161,7 +161,7 @@ impl Shell {
           let cmd_type: CmdType = COMMANDS.lock().unwrap()[**cmd].cmd_type.clone();
           cmd.starts_with(&inputstr) &&
           (!mobile || ![CmdType::NotMobile, CmdType::Alias].contains(&cmd_type)) &&
-          (mobile || cmd_type != CmdType::MobileOnly)
+          (mobile || ![CmdType::MobileOnly].contains(&cmd_type))
         })
         .map(|cmd| cmd.to_string())
         .collect();
@@ -169,6 +169,7 @@ impl Shell {
     }
 
     let cmd = inputstr.split(' ').next().unwrap();
+    info!("cmd for file autocomplete: {}", cmd);
     let cmd_info = {
       let commands = COMMANDS.lock().unwrap();
       commands.get(cmd).cloned()
@@ -179,11 +180,11 @@ impl Shell {
     }
     let cmd_info = cmd_info.unwrap();
 
-    if mobile && cmd_info.cmd_type != CmdType::MobileArg {
+    if mobile && ![CmdType::MobileArg].contains(&cmd_info.cmd_type) {
       return vec![];
     }
 
-    if inputstr.matches(' ').count() > 1 && (inputstr.contains('/') || inputstr.contains('.')) {
+    if (inputstr.matches(' ').count() - inputstr.matches(" -").count()) > 1 {
       return vec![];
     }
 
