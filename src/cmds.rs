@@ -141,7 +141,7 @@ pub fn pwd(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
 
 #[shell_cmd(COMMANDS, "whoami\t\tprint current user", cmd_type=CmdType::Mobile)]
 pub fn whoami(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  write_solo!(state, "gfelber/0x6fe1be2 (https://github.com/gfelber)");
+  write_solo!(state, "gfelber/0x6fe1be2, https://github.com/gfelber");
   None
 }
 

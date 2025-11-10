@@ -32,7 +32,7 @@ We exploit the following parts:
 ```
   ┌────────┐                      ┌───────────┐
   │ Client │            Satellite │ Mesarthim │
-  └────────┘                      └──┬────────┘
+  └─┬──────┘                      └──┬────────┘
     │    ▲ Internet           Space  ▼     ▲   
 ┌───┼────┼───┬───────────────┐    ┌────────┴──┐
 │   ▼    │   │ GROUNDSTATION │    │ Satellite │
