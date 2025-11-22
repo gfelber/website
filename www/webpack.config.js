@@ -24,7 +24,6 @@ module.exports = {
           to: "files",
         },
         { from: "../root", to: "root" },
-        { from: "index.html", to: "index.html" },
         { from: "index.html", to: "404.html" },
         { from: "../dirs", to: "." },
         { from: "img", to: "img" },

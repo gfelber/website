@@ -129,7 +129,7 @@ fn create_dirs_with_template(root: &Entry, index_template: &str) {
   } else {
     let description = get_file_description(&root.url);
     write_index_html(&root.url, &description, index_template);
-    
+
     if root.url.contains("old/")  {
       let fallback_url = root.url.replace("old/", "");
       let _ = fs::create_dir_all(PARENT_URL.to_string() + &fallback_url);
@@ -140,13 +140,13 @@ fn create_dirs_with_template(root: &Entry, index_template: &str) {
 
 fn generate_directory_description(entry: &Entry) -> String {
   let mut file_list = Vec::new();
-  
+
   for (_filename, child) in entry.entries.iter() {
-    if !child.is_dir && !child.filename.starts_with(".") {
+    if !child.filename.starts_with(".") {
       file_list.push(child.filename.as_str());
     }
   }
-  
+
   if !file_list.is_empty() {
     let mut desc = format!("Directory containing: {}", file_list.join(", "));
     if desc.len() > 500 {
@@ -171,7 +171,11 @@ fn get_file_description(entry_path: &str) -> String {
 }
 
 fn write_index_html(url: &str, description: &str, index_template: &str) {
-  let modified_html = if !description.is_empty() {
+  // Extract filename from URL
+  let filename = url.trim_end_matches('/').split('/').last().unwrap_or(url);
+  let escaped_filename = escape_html(filename);
+  
+  let mut modified_html = if !description.is_empty() {
     let escaped_description = escape_html(description);
     index_template.replace(
       "<head>",
@@ -180,6 +184,12 @@ fn write_index_html(url: &str, description: &str, index_template: &str) {
   } else {
     index_template.to_string()
   };
+  
+  // Add hidden h1 with filename after <body>
+  modified_html = modified_html.replace(
+    "<body>",
+    &format!("<body>\n    <h1 style=\"display: none;\">{}</h1>", escaped_filename)
+  );
 
   let dest_path = PARENT_URL.to_string() + url + "/index.html";
   let _ = fs::write(dest_path, modified_html);
