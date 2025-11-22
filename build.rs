@@ -95,7 +95,7 @@ fn collect_urls(urls: &mut Vec<String>, entry: &Entry, parent_url: &str) {
       if clean_url.contains("/old/") {
         let fallback_url = clean_url.replace("/old/", "/");
         urls.push(format!(
-          "  <url>\n    <loc>{}/{}</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
+          "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
           BASE_URL,
           fallback_url,
           format_timestamp(child.modified)
