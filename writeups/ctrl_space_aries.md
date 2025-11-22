@@ -3,11 +3,11 @@ Version: 03-11-2025
 
 # ARIES
 
-Status: Unsolved
+Status: Author
 
 Category: PWN, SPACE, KERNEL, FULL CHAIN
 
-Points: 100 (0 Solves)
+Points: 100
 
 Description:
 

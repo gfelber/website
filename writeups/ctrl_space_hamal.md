@@ -3,11 +3,11 @@ Version: 03-11-2025
 
 # ARIES - Hamal
 
-Status: Solved
+Status: Author
 
 Category: PWN
 
-Points: 370 (2 Solves)
+Points: 370
 
 Description:
 

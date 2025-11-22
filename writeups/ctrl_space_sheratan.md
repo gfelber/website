@@ -4,11 +4,11 @@ Version: 03-11-2025
 # ARIES - Sheratan
 
 
-Status: Unsolved
+Status: Author
 
 Category: PWN, KERNEL
 
-Points: 500 (0 Solves)
+Points: 500
 
 Description:
 > Our industry-leading Sheratan ground station enables seamless communication with your orbital assets.

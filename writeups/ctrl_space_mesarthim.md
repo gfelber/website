@@ -4,11 +4,11 @@ Version: 03-11-2025
 # ARIES - Mesarthim
 
 
-Status: Unsolved
+Status: Author
 
 Category: PWN, SPACE
 
-Points: 500 (0 Solves)
+Points: 500
 
 Description:
 
