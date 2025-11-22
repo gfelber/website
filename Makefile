@@ -25,3 +25,4 @@ esbuild:
 
 clean:
 	cargo clean
+	rm -rf dirs

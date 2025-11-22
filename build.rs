@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::os::unix::fs::symlink;
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -12,25 +13,54 @@ fn main() {
   let dest_path = Path::new(&out_dir).join("root.rs");
   let cargo_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
   let root_path = Path::new(&cargo_dir).join("root");
+  let index_path = Path::new(&cargo_dir).join("www/index.html");
 
   let mut root: Entry = Entry {
     filename: Box::new("".to_string()),
     url: Box::new("".to_string()),
     size: root_path.metadata().unwrap().len(),
-    modified: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+    modified: SystemTime::now()
+      .duration_since(SystemTime::UNIX_EPOCH)
+      .unwrap()
+      .as_secs(),
     is_dir: true,
     entries: HashMap::new(),
   };
   visit_dirs(&mut root, root_path.as_path(), "").expect("couldn't read dir");
+  create_dirs(&root, &index_path);
   let root_serialized: String = ron::ser::to_string(&root).unwrap();
-  let out = format!("pub const ROOT_SERIALIZED: &str = \"{}\";\n", root_serialized.replace("\"", "\\\""));
-  fs::write(
-    &dest_path,
-    out,
-  ).unwrap();
+  let out = format!(
+    "pub const ROOT_SERIALIZED: &str = \"{}\";\n",
+    root_serialized.replace("\"", "\\\"")
+  );
+  fs::write(&dest_path, out).unwrap();
 }
 
-fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'a mut Entry, Box<dyn Error>> {
+const PARENT_URL: &str = "dirs/";
+
+fn create_dirs(root: &Entry, index_path: &Path) {
+  let _ = fs::create_dir_all(PARENT_URL.to_string() + &root.url);
+  for (_filename, entry) in root.entries.iter() {
+    create_dirs(entry, index_path);
+    if entry.url.contains("old/") {
+      let mut old_entry = entry.clone();
+      old_entry.url = Box::new(entry.url.replace("old/", ""));
+      create_dirs(&old_entry, index_path);
+    }
+    if ! entry.is_dir {
+      let _ = symlink(
+        index_path,
+        PARENT_URL.to_string() + &entry.url + "/index.html",
+      );
+    }
+  }
+}
+
+fn visit_dirs<'a>(
+  root: &'a mut Entry,
+  dir: &'a Path,
+  url: &'a str,
+) -> Result<&'a mut Entry, Box<dyn Error>> {
   if dir.is_dir() {
     for entry in fs::read_dir(dir)? {
       let dir_entry = entry?;
@@ -47,7 +77,12 @@ fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'
         filename: filename_box.clone(),
         url: Box::new(fileurl.clone()),
         size: entry_metadata.len(),
-        modified: entry_metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+        modified: entry_metadata
+          .modified()
+          .unwrap()
+          .duration_since(SystemTime::UNIX_EPOCH)
+          .unwrap()
+          .as_secs(),
         is_dir: path.is_dir(),
         entries: HashMap::new(),
       };
@@ -64,7 +99,7 @@ fn visit_dirs<'a>(root: &'a mut Entry, dir: &'a Path, url: &'a str) -> Result<&'
   Ok(root)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct Entry {
   filename: Box<String>,
   url: Box<String>,
