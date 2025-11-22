@@ -91,6 +91,9 @@ impl Term {
   pub fn init(&mut self, height: usize, width: usize, location: &str) {
     self.init = true;
     let mut location_str = location.to_string();
+    if location_str.ends_with("/") && location_str.len() > 1 {
+      location_str.pop();
+    }
     location_str.remove(0);
     let path = filesystem::ROOT.get_file(&location_str.clone());
     self.state.width = width;
@@ -108,6 +111,7 @@ impl Term {
           None => 0,
         };
         let filename = &location_str[offset..];
+        info!("opening file {}", filename);
         less_app.less(&mut self.state, filename).unwrap();
         self.app = Box::new(less_app);
         return;
