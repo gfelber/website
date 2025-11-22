@@ -29,6 +29,7 @@ module.exports = {
         { from: "../dirs", to: "." },
         { from: "img", to: "img" },
         { from: "sitemap.xml", to: "sitemap.xml" },
+        { from: "robots.txt", to: "robots.txt" },
       ],
     }),
   ],
