@@ -40,7 +40,7 @@ fn main() {
 }
 
 const PARENT_URL: &str = "dirs/";
-const BASE_URL: &str = "https://gfelber.dev";
+const BASE_URL: &str = "https://www.gfelber.dev";
 
 fn generate_sitemap(root: &Entry, sitemap_path: &Path) -> Result<(), Box<dyn Error>> {
   let mut urls = Vec::new();
@@ -85,7 +85,7 @@ fn collect_urls(urls: &mut Vec<String>, entry: &Entry, parent_url: &str) {
     // Only add files to sitemap, not directories
     if !child.is_dir {
       urls.push(format!(
-        "  <url>\n    <loc>{}/{}</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
+        "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
         BASE_URL,
         clean_url,
         format_timestamp(child.modified)
