@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::os::unix::fs::symlink;
+
 use std::path::Path;
 use std::time::SystemTime;
 
 use serde::Serialize;
+use chrono::{DateTime, Utc};
 
 fn main() {
   let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -14,6 +15,7 @@ fn main() {
   let cargo_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
   let root_path = Path::new(&cargo_dir).join("root");
   let index_path = Path::new(&cargo_dir).join("www/index.html");
+  let sitemap_path = Path::new(&cargo_dir).join("www/sitemap.xml");
 
   let mut root: Entry = Entry {
     filename: Box::new("".to_string()),
@@ -28,6 +30,7 @@ fn main() {
   };
   visit_dirs(&mut root, root_path.as_path(), "").expect("couldn't read dir");
   create_dirs(&root, &index_path);
+  generate_sitemap(&root, &sitemap_path).expect("couldn't generate sitemap");
   let root_serialized: String = ron::ser::to_string(&root).unwrap();
   let out = format!(
     "pub const ROOT_SERIALIZED: &str = \"{}\";\n",
@@ -37,23 +40,170 @@ fn main() {
 }
 
 const PARENT_URL: &str = "dirs/";
+const BASE_URL: &str = "https://gfelber.dev";
 
-fn create_dirs(root: &Entry, index_path: &Path) {
-  let _ = fs::create_dir_all(PARENT_URL.to_string() + &root.url);
-  for (_filename, entry) in root.entries.iter() {
-    create_dirs(entry, index_path);
-    if entry.url.contains("old/") {
-      let mut old_entry = entry.clone();
-      old_entry.url = Box::new(entry.url.replace("old/", ""));
-      create_dirs(&old_entry, index_path);
+fn generate_sitemap(root: &Entry, sitemap_path: &Path) -> Result<(), Box<dyn Error>> {
+  let mut urls = Vec::new();
+
+  // Add homepage
+  urls.push(format!(
+    "  <url>\n    <loc>{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>",
+    BASE_URL,
+    format_timestamp(root.modified)
+  ));
+
+  // Collect all URLs from the root structure
+  collect_urls(&mut urls, root, "");
+
+  let sitemap = format!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n{}\n</urlset>",
+    urls.join("\n")
+  );
+
+  fs::write(sitemap_path, sitemap)?;
+  Ok(())
+}
+
+fn format_timestamp(timestamp: u64) -> String {
+  let datetime = DateTime::<Utc>::from_timestamp(timestamp as i64, 0)
+    .unwrap_or_else(|| Utc::now());
+  datetime.format("%Y-%m-%d").to_string()
+}
+
+fn collect_urls(urls: &mut Vec<String>, entry: &Entry, parent_url: &str) {
+  for (_filename, child) in entry.entries.iter() {
+    let url = format!("{}/{}", parent_url, child.filename);
+    let clean_url = url.trim_start_matches('/');
+
+    // Skip res and img directories, and latest.md
+    if clean_url.starts_with("res/") || clean_url.starts_with("img/") ||
+       clean_url.contains("/res/") || clean_url.contains("/img/") ||
+       clean_url == "latest.md" {
+      continue;
     }
-    if ! entry.is_dir {
-      let _ = symlink(
-        index_path,
-        PARENT_URL.to_string() + &entry.url + "/index.html",
-      );
+
+    // Only add files to sitemap, not directories
+    if !child.is_dir {
+      urls.push(format!(
+        "  <url>\n    <loc>{}/{}</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
+        BASE_URL,
+        clean_url,
+        format_timestamp(child.modified)
+      ));
+
+      // If URL contains "old/", also add a fallback URL without it
+      if clean_url.contains("/old/") {
+        let fallback_url = clean_url.replace("/old/", "/");
+        urls.push(format!(
+          "  <url>\n    <loc>{}/{}</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
+          BASE_URL,
+          fallback_url,
+          format_timestamp(child.modified)
+        ));
+      }
+    }
+
+    // Recursively collect URLs from subdirectories
+    if child.is_dir {
+      collect_urls(urls, child, &url);
     }
   }
+}
+
+fn create_dirs(root: &Entry, index_path: &Path) {
+  let index_template = fs::read_to_string(index_path).unwrap();
+  create_dirs_with_template(root, &index_template);
+}
+
+fn create_dirs_with_template(root: &Entry, index_template: &str) {
+  let _ = fs::create_dir_all(PARENT_URL.to_string() + &root.url);
+
+  for (_filename, entry) in root.entries.iter() {
+    create_dirs_with_template(entry, index_template);
+  }
+
+  if ! root.is_dir {
+    create_index_with_description(root, &root.url, index_template);
+    if root.url.contains("old/")  {
+      let mut old_root = root.clone();
+      old_root.url = Box::new(root.url.replace("old/", ""));
+      create_index_with_description(&old_root, &root.url, index_template);
+    }
+  }
+}
+
+fn create_index_with_description(entry: &Entry, entry_path: &str, index_template: &str) {
+  let cargo_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
+  let md_path = Path::new(&cargo_dir).join(entry_path);
+
+  let description = if md_path.exists() && md_path.is_file() {
+    extract_description(&md_path)
+  } else {
+    String::new()
+  };
+
+  // Create modified HTML with meta description
+  let modified_html = if !description.is_empty() {
+    let escaped_description = description
+      .replace("&", "&amp;")
+      .replace("\"", "&quot;")
+      .replace("<", "&lt;")
+      .replace(">", "&gt;");
+
+    // Insert meta tag after <head>
+    index_template.replace(
+      "<head>",
+      &format!("<head>\n    <meta name=\"description\" content=\"{}\" />", escaped_description)
+    )
+  } else {
+    index_template.to_string()
+  };
+
+  // Write the HTML file
+  let dest_path = PARENT_URL.to_string() + &entry.url + "/index.html";
+  let _ = fs::write(dest_path, modified_html);
+}
+
+fn extract_description(md_path: &Path) -> String {
+  let content = match fs::read_to_string(md_path) {
+    Ok(c) => c,
+    Err(_) => return String::new(),
+  };
+
+  if let Some(tldr_pos) = content.to_lowercase().find("tl;dr") {
+    if let Some(line_end) = content[tldr_pos..].find('\n') {
+      let start = tldr_pos + line_end + 1;
+      let remaining = &content[start..];
+
+      let mut description = String::new();
+      for line in remaining.lines() {
+        if line.trim().starts_with('#') || line.trim().starts_with("```") {
+          break;
+        }
+        if description.len() + line.len() > 500 {
+          let space_left = 500 - description.len();
+          description.push_str(&line[..space_left.min(line.len())]);
+          break;
+        }
+        if !description.is_empty() {
+          description.push(' ');
+        }
+        description.push_str(line.trim());
+      }
+
+      return description.trim().to_string();
+    }
+  }
+
+  let text: String = content
+    .lines()
+    .filter(|line| !line.trim().starts_with('#'))
+    .map(|line| line.trim())
+    .filter(|line| !line.is_empty())
+    .collect::<Vec<&str>>()
+    .join(" ");
+
+  text.chars().take(500).collect()
 }
 
 fn visit_dirs<'a>(

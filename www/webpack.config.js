@@ -28,6 +28,7 @@ module.exports = {
         { from: "index.html", to: "404.html" },
         { from: "../dirs", to: "." },
         { from: "img", to: "img" },
+        { from: "sitemap.xml", to: "sitemap.xml" },
       ],
     }),
   ],
