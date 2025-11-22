@@ -127,6 +127,7 @@ fn create_dirs_with_template(root: &Entry, index_template: &str) {
     if root.url.contains("old/")  {
       let mut old_root = root.clone();
       old_root.url = Box::new(root.url.replace("old/", ""));
+      let _ = fs::create_dir_all(PARENT_URL.to_string() + &old_root.url);
       create_index_with_description(&old_root, &root.url, index_template);
     }
   }
