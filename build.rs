@@ -122,36 +122,57 @@ fn create_dirs_with_template(root: &Entry, index_template: &str) {
     create_dirs_with_template(entry, index_template);
   }
 
-  if ! root.is_dir {
-    create_index_with_description(root, &root.url, index_template);
+  if root.is_dir {
+    // For directories, create an index with a description of the contents
+    let description = generate_directory_description(root);
+    write_index_html(&root.url, &description, index_template);
+  } else {
+    let description = get_file_description(&root.url);
+    write_index_html(&root.url, &description, index_template);
+    
     if root.url.contains("old/")  {
-      let mut old_root = root.clone();
-      old_root.url = Box::new(root.url.replace("old/", ""));
-      let _ = fs::create_dir_all(PARENT_URL.to_string() + &old_root.url);
-      create_index_with_description(&old_root, &root.url, index_template);
+      let fallback_url = root.url.replace("old/", "");
+      let _ = fs::create_dir_all(PARENT_URL.to_string() + &fallback_url);
+      write_index_html(&fallback_url, &description, index_template);
     }
   }
 }
 
-fn create_index_with_description(entry: &Entry, entry_path: &str, index_template: &str) {
+fn generate_directory_description(entry: &Entry) -> String {
+  let mut file_list = Vec::new();
+  
+  for (_filename, child) in entry.entries.iter() {
+    if !child.is_dir && !child.filename.starts_with(".") {
+      file_list.push(child.filename.as_str());
+    }
+  }
+  
+  if !file_list.is_empty() {
+    let mut desc = format!("Directory containing: {}", file_list.join(", "));
+    if desc.len() > 500 {
+      desc.truncate(497);
+      desc.push_str("...");
+    }
+    desc
+  } else {
+    String::from("Directory")
+  }
+}
+
+fn get_file_description(entry_path: &str) -> String {
   let cargo_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
   let md_path = Path::new(&cargo_dir).join(entry_path);
 
-  let description = if md_path.exists() && md_path.is_file() {
+  if md_path.exists() && md_path.is_file() {
     extract_description(&md_path)
   } else {
     String::new()
-  };
+  }
+}
 
-  // Create modified HTML with meta description
+fn write_index_html(url: &str, description: &str, index_template: &str) {
   let modified_html = if !description.is_empty() {
-    let escaped_description = description
-      .replace("&", "&amp;")
-      .replace("\"", "&quot;")
-      .replace("<", "&lt;")
-      .replace(">", "&gt;");
-
-    // Insert meta tag after <head>
+    let escaped_description = escape_html(description);
     index_template.replace(
       "<head>",
       &format!("<head>\n    <meta name=\"description\" content=\"{}\" />", escaped_description)
@@ -160,9 +181,16 @@ fn create_index_with_description(entry: &Entry, entry_path: &str, index_template
     index_template.to_string()
   };
 
-  // Write the HTML file
-  let dest_path = PARENT_URL.to_string() + &entry.url + "/index.html";
+  let dest_path = PARENT_URL.to_string() + url + "/index.html";
   let _ = fs::write(dest_path, modified_html);
+}
+
+fn escape_html(text: &str) -> String {
+  text
+    .replace("&", "&amp;")
+    .replace("\"", "&quot;")
+    .replace("<", "&lt;")
+    .replace(">", "&gt;")
 }
 
 fn extract_description(md_path: &Path) -> String {
