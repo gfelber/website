@@ -82,25 +82,30 @@ fn collect_urls(urls: &mut Vec<String>, entry: &Entry, parent_url: &str) {
       continue;
     }
 
-    // Only add files to sitemap, not directories
-    if !child.is_dir {
-      urls.push(format!(
-        "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
-        BASE_URL,
-        clean_url,
-        format_timestamp(child.modified)
-      ));
+    // Add both files and directories to sitemap
+    let priority = if child.is_dir { "0.8" } else { "0.6" };
+    let changefreq = if child.is_dir { "weekly" } else { "monthly" };
+    
+    urls.push(format!(
+      "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>{}</changefreq>\n    <priority>{}</priority>\n  </url>",
+      BASE_URL,
+      clean_url,
+      format_timestamp(child.modified),
+      changefreq,
+      priority
+    ));
 
-      // If URL contains "old/", also add a fallback URL without it
-      if clean_url.contains("/old/") {
-        let fallback_url = clean_url.replace("/old/", "/");
-        urls.push(format!(
-          "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>",
-          BASE_URL,
-          fallback_url,
-          format_timestamp(child.modified)
-        ));
-      }
+    // If URL contains "old/", also add a fallback URL without it
+    if clean_url.contains("/old/") {
+      let fallback_url = clean_url.replace("/old/", "/");
+      urls.push(format!(
+        "  <url>\n    <loc>{}/{}/</loc>\n    <lastmod>{}</lastmod>\n    <changefreq>{}</changefreq>\n    <priority>{}</priority>\n  </url>",
+        BASE_URL,
+        fallback_url,
+        format_timestamp(child.modified),
+        changefreq,
+        priority
+      ));
     }
 
     // Recursively collect URLs from subdirectories
@@ -125,15 +130,17 @@ fn create_dirs_with_template(root: &Entry, index_template: &str) {
   if root.is_dir {
     // For directories, create an index with a description of the contents
     let description = generate_directory_description(root);
-    write_index_html(&root.url, &description, index_template);
+    write_index_html_for_entry(root, &description, index_template);
   } else {
     let description = get_file_description(&root.url);
-    write_index_html(&root.url, &description, index_template);
+    write_index_html_for_entry(root, &description, index_template);
 
     if root.url.contains("old/")  {
       let fallback_url = root.url.replace("old/", "");
       let _ = fs::create_dir_all(PARENT_URL.to_string() + &fallback_url);
-      write_index_html(&fallback_url, &description, index_template);
+      let mut fallback_entry = root.clone();
+      fallback_entry.url = Box::new(fallback_url);
+      write_index_html_for_entry(&fallback_entry, &description, index_template);
     }
   }
 }
@@ -170,9 +177,9 @@ fn get_file_description(entry_path: &str) -> String {
   }
 }
 
-fn write_index_html(url: &str, description: &str, index_template: &str) {
+fn write_index_html_for_entry(entry: &Entry, description: &str, index_template: &str) {
   // Extract filename from URL
-  let filename = url.trim_end_matches('/').split('/').last().unwrap_or(url);
+  let filename = entry.url.trim_end_matches('/').split('/').last().unwrap_or(&entry.url);
   let escaped_filename = escape_html(filename);
   
   let mut modified_html = if !description.is_empty() {
@@ -185,13 +192,30 @@ fn write_index_html(url: &str, description: &str, index_template: &str) {
     index_template.to_string()
   };
   
-  // Add hidden h1 with filename after <body>
+  // Add hidden h1 with filename and links after <body>
+  let mut hidden_content = format!("<h1 style=\"display: none;\">{}</h1>", escaped_filename);
+  
+  // For directories, add hidden links to all entries
+  if entry.is_dir {
+    let mut links = Vec::new();
+    for (_filename, child) in entry.entries.iter() {
+      if !child.filename.starts_with(".") {
+        let child_url = format!("/{}/", child.url.trim_end_matches('/'));
+        let escaped_child_name = escape_html(&child.filename);
+        links.push(format!("<a href=\"{}\">{}</a>", child_url, escaped_child_name));
+      }
+    }
+    if !links.is_empty() {
+      hidden_content.push_str(&format!("\n    <nav style=\"display: none;\">{}</nav>", links.join(" ")));
+    }
+  }
+  
   modified_html = modified_html.replace(
     "<body>",
-    &format!("<body>\n    <h1 style=\"display: none;\">{}</h1>", escaped_filename)
+    &format!("<body>\n    {}", hidden_content)
   );
 
-  let dest_path = PARENT_URL.to_string() + url + "/index.html";
+  let dest_path = PARENT_URL.to_string() + &entry.url + "/index.html";
   let _ = fs::write(dest_path, modified_html);
 }
 
