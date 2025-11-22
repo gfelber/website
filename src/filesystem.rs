@@ -29,13 +29,24 @@ impl Entry {
     ron::from_str(ROOT_SERIALIZED).unwrap()
   }
 
-  fn get_file_rec(&self, files: &Vec<&str>) -> Result<&Entry, String> {
-    let entry = self.entries.get(files[0]).ok_or("File not found")?;
-    let files = &files[1..files.len()].to_vec();
-    if files.is_empty() {
-      return Ok(entry);
-    }
-    entry.get_file_rec(files)
+  fn get_file_rec(&self, files: &[&str]) -> Result<&Entry, String> {
+      let entry = match self.entries.get(files[0]) {
+          Some(e) => e,
+          None => {
+              self.entries.get("old")
+                  .ok_or_else(|| "File not found".to_string())?
+                  .entries.get(files[0])
+                  .ok_or_else(|| "File not found".to_string())?
+          }
+      };
+
+      let remaining_files = &files[1..];
+
+      if remaining_files.is_empty() {
+          Ok(entry)
+      } else {
+          entry.get_file_rec(remaining_files)
+      }
   }
 
   pub fn get_file(&self, path_str: impl Into<String>) -> Result<&Entry, String> {
