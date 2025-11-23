@@ -71,38 +71,66 @@ class MultiLineWebLinkProvider {
       return result;
     }
 
-    const currentText = currentLine.translateToString(true);
+    // Scan backward to find if a URL started on a previous line
+    const maxLookBack = 10;
+    let scanStartLine = y - 1;
     
-    // Collect lines forward until we hit empty line
-    const lines = [currentText];
-    const maxLookAhead = 10;
-    
-    for (let i = 1; i <= maxLookAhead; i++) {
-      const line = buf.getLine(y - 1 + i);
+    for (let i = 1; i <= maxLookBack; i++) {
+      const line = buf.getLine(y - 1 - i);
       if (!line) break;
       const text = line.translateToString(true);
-      // Stop if we hit an empty or whitespace-only line
-      if (text.trim().length === 0) {
+      if (text.trim().length === 0) break; // Stop at empty line
+      
+      // Check if this line contains http:// or https://
+      if (text.match(/(https?):\/\//i)) {
+        scanStartLine = y - 1 - i;
         break;
       }
-      lines.push(text);
     }
 
-    // Try to find URLs in current line
-    const rex = new RegExp(this._regex.source, this._regex.flags || 'gi');
-    let match;
+    // Collect lines from URL start forward until we hit empty line
+    const lines = [];
+    const maxLookAhead = 15;
+    
+    for (let i = 0; i < maxLookAhead; i++) {
+      const line = buf.getLine(scanStartLine + i);
+      if (!line) break;
+      const text = line.translateToString(true);
+      // Stop if we hit an empty or whitespace-only line (unless it's the first line)
+      if (i > 0 && text.trim().length === 0) {
+        break;
+      }
+      lines.push({ lineIndex: scanStartLine + i, text });
+    }
 
-    while ((match = rex.exec(currentText)) !== null) {
+
+
+    // Try to find URLs in all collected lines
+    const rex = new RegExp(this._regex.source, this._regex.flags || 'gi');
+
+    for (const lineInfo of lines) {
+      const lineText = lineInfo.text;
+      const lineIdx = lineInfo.lineIndex;
+      let match;
+      rex.lastIndex = 0; // Reset regex
+
+      while ((match = rex.exec(lineText)) !== null) {
       const rawMatch = match[0];
       let urlText = rawMatch.replace(/\s+/g, ''); // Remove all whitespace
       let matchLength = rawMatch.length;
+      const continuationLines = []; // Track which lines are part of this URL
       
       // Check if this URL is incomplete (ends with - or / or .)
       // Only then try to join with subsequent lines
       if (urlText.endsWith('-') || urlText.endsWith('/') || urlText.endsWith('.')) {
+        // Find current line in our collected lines
+        const currentIdx = lines.findIndex(l => l.lineIndex === lineIdx);
+        if (currentIdx === -1) continue;
+        
         // Scan subsequent lines for continuation
-        for (let i = 1; i < lines.length; i++) {
-          const nextText = lines[i].trim();
+        for (let i = 1; i < lines.length - currentIdx; i++) {
+          const nextLineInfo = lines[currentIdx + i];
+          const nextText = nextLineInfo.text.trim();
           
           if (nextText.length === 0) {
             break;
@@ -112,6 +140,8 @@ class MultiLineWebLinkProvider {
           const continuationMatch = nextText.match(/^([a-zA-Z0-9\-._~:/?#@!$&'()*+,;=%]+)/);
           if (continuationMatch) {
             const continuation = continuationMatch[1];
+            const contLineIdx = lineIdx + i;
+            continuationLines.push({ lineIndex: contLineIdx, text: nextLineInfo.text, continuation });
             urlText = urlText + continuation;
             
             // If this continuation doesn't end with - / or ., we're done
@@ -129,8 +159,8 @@ class MultiLineWebLinkProvider {
         continue;
       }
 
-      // Map string positions back to buffer positions (original logic)
-      const [startY, startX] = this._mapStrIdx(terminal, y - 1, 0, match.index);
+      // Create link for the first line (the one with http://)
+      const [startY, startX] = this._mapStrIdx(terminal, lineIdx, 0, match.index);
       const [endY, endX] = this._mapStrIdx(terminal, startY, startX, matchLength);
 
       if (startY === -1 || startX === -1 || endY === -1 || endX === -1) {
@@ -150,6 +180,39 @@ class MultiLineWebLinkProvider {
       };
 
       result.push({ range, text: urlText, activate });
+
+      // Create additional links for continuation lines
+      for (const cont of continuationLines) {
+        const contLine = buf.getLine(cont.lineIndex);
+        if (!contLine) {
+          continue;
+        }
+        
+        const contText = cont.text;
+        const contStart = contText.indexOf(cont.continuation);
+        if (contStart === -1) continue;
+        
+        const [contStartY, contStartX] = this._mapStrIdx(terminal, cont.lineIndex, 0, contStart);
+        const [contEndY, contEndX] = this._mapStrIdx(terminal, contStartY, contStartX, cont.continuation.length);
+        
+        if (contStartY === -1 || contStartX === -1 || contEndY === -1 || contEndX === -1) {
+          continue;
+        }
+        
+        const contRange = {
+          start: {
+            x: contStartX + 1,
+            y: contStartY + 1
+          },
+          end: {
+            x: contEndX,
+            y: contEndY + 1
+          }
+        };
+        
+        result.push({ range: contRange, text: urlText, activate });
+      }
+      }
     }
 
     return result;
