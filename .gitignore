@@ -10,5 +10,5 @@ root
 dirs
 www/sitemap.xml
 /writeups
-/CVE
+/cve
 latest.md

@@ -180,20 +180,33 @@ fn get_file_description(entry_path: &str) -> String {
 fn write_index_html_for_entry(entry: &Entry, description: &str, index_template: &str) {
   // Extract filename from URL
   let filename = entry.url.trim_end_matches('/').split('/').last().unwrap_or(&entry.url);
-  let escaped_filename = escape_html(filename);
+  // Use "gfelber.dev" as display name for root directory
+  let display_name = if filename.is_empty() || entry.url.is_empty() || entry.url.as_str() == "" {
+    "gfelber.dev"
+  } else {
+    filename
+  };
+  let escaped_display_name = escape_html(display_name);
   
-  let mut modified_html = if !description.is_empty() {
+  let mut modified_html = index_template.to_string();
+  
+  // Add title tag
+  modified_html = modified_html.replace(
+    "<head>",
+    &format!("<head>\n    <title>{}</title>", escaped_display_name)
+  );
+  
+  // Add description meta tag if available
+  if !description.is_empty() {
     let escaped_description = escape_html(description);
-    index_template.replace(
+    modified_html = modified_html.replace(
       "<head>",
       &format!("<head>\n    <meta name=\"description\" content=\"{}\" />", escaped_description)
-    )
-  } else {
-    index_template.to_string()
-  };
+    );
+  }
   
   // Add hidden h1 with filename and links after <body>
-  let mut hidden_content = format!("<h1 style=\"display: none;\">{}</h1>", escaped_filename);
+  let mut hidden_content = format!("<h1 style=\"display: none;\">{}</h1>", escaped_display_name);
   
   // For directories, add hidden links to all entries
   if entry.is_dir {
