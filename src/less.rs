@@ -44,13 +44,17 @@ impl App for Less {
         self.less_from(state, usize::MAX);
         None
       }
-
+      // down page
+      ' ' => {
+        self.ansi_clear();
+        self.less_from(state, self.line + state.height);
+        None
+      }
       // up
       'k' => {
         self.less_from(state, if self.line > 0 { self.line - 1 } else { 0 });
         None
       }
-
       // down
       'j' => {
         self.less_from(state, self.line + 1);
