@@ -31,6 +31,7 @@ clap = { version = "4.5.17", features = ["derive"] }
 serde = { version = "1.0.210", features = ["derive"] }
 ron = "0.8.1"
 wasm-bindgen-futures = "0.4.43"
+js-sys = "0.3.70"
 chrono = { version = "0.4.38", features = [] }
 ctor = "0.2.8"
 proc-macro2 = "1.0.86"

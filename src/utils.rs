@@ -87,6 +87,22 @@ pub fn set_panic_hook() {
   console_error_panic_hook::set_once();
 }
 
+pub fn local_storage() -> Option<web_sys::Storage> {
+  window().and_then(|window| window.local_storage().ok().flatten())
+}
+
+// returns true only once per browser; false if storage is unavailable
+pub fn first_visit() -> bool {
+  let Some(storage) = local_storage() else {
+    return false;
+  };
+  if let Ok(Some(_)) = storage.get_item("booted") {
+    return false;
+  }
+  let _ = storage.set_item("booted", "1");
+  true
+}
+
 pub fn change_url(new_url_str: impl Into<String>) -> Result<(), JsValue> {
   let new_url = new_url_str.into();
   // Get a reference to the window's history object

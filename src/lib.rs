@@ -34,6 +34,41 @@ lazy_static! {
   static ref TERM: Mutex<Term> = Mutex::new(Term::new());
 }
 
+async fn sleep(ms: i32) {
+  let promise = js_sys::Promise::new(&mut |resolve, _| {
+    web_sys::window()
+      .unwrap()
+      .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms)
+      .unwrap();
+  });
+  let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
+async fn boot_banner() {
+  for line in consts::BANNER {
+    utils::writeln(*line);
+    sleep(45).await;
+  }
+  utils::write(consts::PREFIX);
+}
+
+fn spawn_boot_banner() {
+  wasm_bindgen_futures::spawn_local(boot_banner());
+}
+
+pub(crate) fn spawn_reboot() {
+  wasm_bindgen_futures::spawn_local(async {
+    sleep(400).await;
+    {
+      let mut term = TERM.lock().unwrap();
+      let state = term.state.deref_mut();
+      clear!(state);
+      state.cursor_x = consts::PREFIX.len();
+    }
+    boot_banner().await;
+  });
+}
+
 #[wasm_bindgen]
 pub fn init(height: usize, width: usize, location: &str) {
   let mut term = TERM.lock().unwrap();
@@ -119,7 +154,14 @@ impl Term {
       }
     }
     self.app = Box::new(shell::Shell::new());
-    shell::Shell::clear(&mut self.state);
+    if location_str.is_empty() && utils::first_visit() {
+      // prompt is drawn by the banner task; set cursor state now so input
+      // arriving mid-banner can't index before the prompt
+      self.state.cursor_x = consts::PREFIX.len();
+      spawn_boot_banner();
+    } else {
+      shell::Shell::clear(&mut self.state);
+    }
   }
 
   pub fn readline(&mut self, input: &str) {

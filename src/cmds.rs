@@ -136,12 +136,8 @@ lazy_static! {
 const HISTORY_KEY: &str = "cmd_history";
 const HISTORY_LIMIT: usize = 100;
 
-fn local_storage() -> Option<web_sys::Storage> {
-  web_sys::window().and_then(|window| window.local_storage().ok().flatten())
-}
-
 pub fn load_history() {
-  let Some(storage) = local_storage() else {
+  let Some(storage) = utils::local_storage() else {
     return;
   };
   if let Ok(Some(saved)) = storage.get_item(HISTORY_KEY) {
@@ -153,7 +149,7 @@ pub fn load_history() {
 }
 
 pub fn save_history(history: &[&str]) {
-  let Some(storage) = local_storage() else {
+  let Some(storage) = utils::local_storage() else {
     return;
   };
   let start = history.len().saturating_sub(HISTORY_LIMIT);
@@ -416,6 +412,17 @@ pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   } else {
     write_solo!(state, format!("{}: No such directory", path_str));
   }
+  None
+}
+
+#[shell_cmd(COMMANDS, "reboot\t\treboot the system", cmd_type=CmdType::Mobile)]
+pub fn reboot(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
+  new!(state);
+  write!("reboot: Power down");
+  // keep cursor state past the (invisible) prompt so input arriving before
+  // the banner task redraws it can't index before the prompt
+  state.cursor_x = consts::PREFIX.len();
+  crate::spawn_reboot();
   None
 }
 
