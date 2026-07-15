@@ -46,6 +46,7 @@ pub fn init(height: usize, width: usize, location: &str) {
   }
   if !term.init {
     cmds_init();
+    cmds::load_history();
   }
   info!("init");
   term.init(height, width, location);

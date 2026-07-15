@@ -1,5 +1,3 @@
-use std::cmp::max;
-
 use log::{info, warn};
 
 use crate::app::App;
@@ -56,9 +54,9 @@ impl App for Shell {
         Shell::clear(state);
         None
       }
-      // return key
+      // backspace
       '\x7f' => {
-        if self.input_buffer.is_empty() {
+        if self.input_buffer.is_empty() || state.cursor_x <= consts::PREFIX.len() {
           return None;
         }
         let cursor_x = state.cursor_x - (consts::PREFIX.len() + 1);
@@ -131,7 +129,7 @@ impl Shell {
     Self {
       input_buffer: vec![],
       ansi_buffer: vec![],
-      history_index: max(history.len(), 1) - 1,
+      history_index: history.len(),
       ansi: false,
       insert: false,
     }
@@ -313,6 +311,7 @@ impl Shell {
     let mut history = CMD_HISTORY.lock().unwrap();
     if history.is_empty() || history[history.len() - 1] != cmdline {
       history.push(Box::leak(cmdline.to_owned().into_boxed_str()));
+      cmds::save_history(&history);
     }
     self.history_index = history.len();
     drop(history);
@@ -344,6 +343,8 @@ impl Shell {
   }
   fn ansi(&mut self, state: &mut TermState, ansistr: &str) {
     let history = CMD_HISTORY.lock().unwrap();
+    // history may have shrunk since we last stored the index (e.g. history -c)
+    self.history_index = self.history_index.min(history.len());
     match ansistr {
       consts::UP => {
         self.ansi_clear();
@@ -368,12 +369,13 @@ impl Shell {
           state.cursor_x = entry.len() + consts::PREFIX.len();
           write!("{}", entry);
         } else if self.history_index < history.len() {
-          self.history_index += 1
+          // moving past the newest entry: back to an empty prompt
+          self.history_index += 1;
+          self.clearline(state);
+          write!("");
+          self.input_buffer.clear();
+          state.cursor_x = consts::PREFIX.len();
         }
-        self.clearline(state);
-        write!("");
-        self.input_buffer.clear();
-        state.cursor_x = consts::PREFIX.len();
       }
       consts::RIGHT => {
         self.ansi_clear();

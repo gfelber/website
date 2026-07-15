@@ -102,6 +102,13 @@ struct LessArgs {
   file: String,
 }
 
+#[derive(Parser)]
+#[command(about = "print cmd history")]
+struct HistoryArgs {
+  #[arg(short, long, action, help = "clear history")]
+  clear: bool,
+}
+
 type CommandFn = fn(&mut TermState, &str) -> Option<Box<dyn App>>;
 
 #[derive(Clone)]
@@ -124,6 +131,33 @@ pub struct CmdInfo {
 lazy_static! {
   pub static ref COMMANDS: Mutex<HashMap<&'static str, CmdInfo>> = Mutex::new(HashMap::new());
   pub static ref CMD_HISTORY: Mutex<Vec<&'static str>> = Mutex::new(vec![]);
+}
+
+const HISTORY_KEY: &str = "cmd_history";
+const HISTORY_LIMIT: usize = 100;
+
+fn local_storage() -> Option<web_sys::Storage> {
+  web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+}
+
+pub fn load_history() {
+  let Some(storage) = local_storage() else {
+    return;
+  };
+  if let Ok(Some(saved)) = storage.get_item(HISTORY_KEY) {
+    let mut history = CMD_HISTORY.lock().unwrap();
+    for line in saved.lines().filter(|line| !line.is_empty()) {
+      history.push(Box::leak(line.to_owned().into_boxed_str()));
+    }
+  }
+}
+
+pub fn save_history(history: &[&str]) {
+  let Some(storage) = local_storage() else {
+    return;
+  };
+  let start = history.len().saturating_sub(HISTORY_LIMIT);
+  let _ = storage.set_item(HISTORY_KEY, &history[start..].join("\n"));
 }
 
 #[shell_cmd(COMMANDS, "clear\t\tclear terminal", cmd_type=CmdType::Mobile)]
@@ -385,9 +419,16 @@ pub fn cd(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
   None
 }
 
-#[shell_cmd(COMMANDS, "history\t\tprint cmd history")]
-fn history(state: &mut TermState, _args: &str) -> Option<Box<dyn App>> {
-  let history = CMD_HISTORY.lock().unwrap();
+#[shell_cmd(COMMANDS, "history\t[-c]\tprint (or clear) cmd history")]
+fn history(state: &mut TermState, cmdline: &str) -> Option<Box<dyn App>> {
+  let args: HistoryArgs = parse_args!(state, HistoryArgs::try_parse_from(cmdline.split(" ")), None);
+  let mut history = CMD_HISTORY.lock().unwrap();
+  if args.clear {
+    history.clear();
+    save_history(&history);
+    init!(state);
+    return None;
+  }
   new!(state);
   for (index, cmd) in history.iter().enumerate() {
     writeln!(state, "{:-4} {}", index, cmd);
