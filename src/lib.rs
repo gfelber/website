@@ -1,6 +1,3 @@
-#![feature(str_split_remainder)]
-#![feature(negative_impls)]
-
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
