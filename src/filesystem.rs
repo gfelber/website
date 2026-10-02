@@ -71,7 +71,12 @@ impl Entry {
       self.modified as i64, 0,
     ).unwrap();
 
-    datetime.format("%b %e %H:%M").to_string()
+    let now = (js_sys::Date::now() / 1000.0) as u64;
+    if now.saturating_sub(self.modified) > 365 * 24 * 60 * 60 {
+      datetime.format("%b %e  %Y").to_string()
+    } else {
+      datetime.format("%b %e %H:%M").to_string()
+    }
   }
 
   pub fn join(&self, path_str: impl Into<String>) -> String {
