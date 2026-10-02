@@ -9,6 +9,4 @@ dist
 root
 dirs
 www/sitemap.xml
-/writeups
-/cve
-latest.md
+/content
